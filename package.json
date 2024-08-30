@@ -1,0 +1,14 @@
+{
+  "name": "helpers-vu_diep",
+  "version": "1.0.0",
+  "description": "giup code js don gian hon",
+  "main": "core.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "helpers"
+  ],
+  "author": "vu_diep",
+  "license": "ISC"
+}
