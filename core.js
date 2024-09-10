@@ -79,6 +79,418 @@ class RequestServerHelpers {
   }
 }
 
+/**Class làm việc  các sự kiện change*/
+class EventHelpers {
+  /**
+   * 
+   * @param {Object} scope phạm vi mà các dom được phép lắng nghe. Giả sử bạn chỉ muốn lắng nghe sự kiện của 1 form. Thì bạn truyền dom của form đó khi khởi tạo class như vậy các sự kiện sẽ chỉ được lắng nghe trong form đó.
+   */
+  constructor(scope) {
+    // Kiểm tra xem scope có phải là một phần tử DOM hợp lệ không, nếu không mặc định là document
+    this.scope = (scope instanceof HTMLElement || scope instanceof Document) ? scope : document;
+  }
+  // Phương thức chung để thêm sự kiện
+  addEvent(dom, eventType, callback) {
+    const domElement = this.scope.querySelector(dom);
+    // Kiểm tra xem dom có tồn tại và có phải là một phần tử DOM hợp lệ không
+    if (!check(domElement, dom)) return;
+    domElement.addEventListener(eventType, (e) => {
+      callback(e);
+    });
+  }
+
+  // lắng nghe sự kiện input
+  input(dom, callback) {
+    this.addEvent(dom, "input", callback);
+  }
+  // lắng nghe sự kiện submit
+  submit(form, callback) {
+    this.addEvent(form, "submit", (e) => {
+      e.preventDefault();
+      callback(e);
+    });
+  }
+  // lắng nghe sự kiện click
+  click(dom, callback) {
+    this.addEvent(dom, "click", callback);
+  }
+  // lắng nghe sự kiện change
+  change(dom, callback) {
+    this.addEvent(dom, "change", callback);
+  }
+}
+
+/**Class làm việc với modal */
+class ModalHelpers extends RequestServerHelpers {
+  /**
+   * @param {Object} form đã được khởi tạo bằng class FormHelpers
+   * @param {string} modalSelector nhận vào 1 id, class modal
+   * @param {string} api được sử dụng khi khởi tạo modal edit
+   */
+  constructor(form, modalSelector, api = "") {
+    super("");
+    this.form = form;
+    this.api = api;
+    this.modalSelector = modalSelector;
+    this.priceFormat = [];
+    this.dateFormat = [];
+    this.modal = null;
+    this.loading = null;
+    this.newModal = null;
+
+  }
+
+  /** Khởi tạo modal và xử lý sự kiện mở modal 
+   * @param {string} showSelector nhận vào 1 id, class để lắng nghe việc mở modal. Nếu để trống nó sẽ tự động mở modal sau khi gọi hàm
+   * @param {Array} dataDefault dữ liệu mặc định được đổ vào form khi mở modal
+   * Ví dụ:
+   * dataDefault = [
+   * { dom: "Id hoặc class đổ ra dữ liệu mặc định", value: "Dữ liệu mặc định"},
+   * ]
+  */
+  startModal(showSelector = "", dataDefault = []) {
+    const openModal = () => {
+      this.modal = document.querySelector(this.modalSelector);
+      if (!check(this.modal, this.modalSelector)) return;
+
+      this.initializeModal();
+      this.showModal();
+      this.setLoading();
+
+      // Đổ dữ liệu mặc định vào form nếu có
+      this.modal.addEventListener("shown.bs.modal", () => {
+        this.hideLoading();
+        if (dataDefault.length > 0) this.fillFormWithDefaults(dataDefault);
+      });
+      // Khởi tạo sự kiện đóng modal
+      this.resetModal();
+    };
+
+    // Nếu có showSelector, gắn sự kiện click vào phần tử đó để mở modal
+    if (showSelector) {
+      const element = document.querySelector(showSelector);
+      if (!check(element, showSelector)) return;
+      element.addEventListener("click", openModal);
+    } else {
+      openModal();
+    }
+  }
+
+  /** Khởi tạo modal edit và đổ dữ liệu từ API 
+   * @param {Object} params nhận vào object param
+  */
+  async startModalEdit(params = {}) {
+    try {
+      this.modal = document.querySelector(this.modalSelector);
+      if (!check(this.modal, this.modalSelector)) return;
+
+      this.params = params;
+      this.initializeModal();
+      this.showModal();
+      this.setLoading();
+
+      // Lấy dữ liệu từ API
+      const response = await this.getData(this.api);
+      if (response.status !== 200) {
+        showErrorMD("Đã xảy ra lỗi khi lấy dữ liệu. Vui lòng thử lại.");
+        return;
+      }
+
+      let data = response.data?.data?.length ? response.data.data[0] : response.data[0];
+
+      this.modal.addEventListener("shown.bs.modal", () => {
+        this.hideLoading();
+        this.fillFormWithData(data); // Đổ dữ liệu vào form
+      });
+      // Khởi tạo sự kiện đóng modal
+      this.resetModal();
+    } catch (error) {
+      console.error("Error during startModalEdit:", error);
+      showErrorMD("Có lỗi xảy ra, vui lòng thử lại sau.");
+    }
+  }
+
+  /** Khởi tạo modal */
+  initializeModal() {
+    this.newModal = new bootstrap.Modal(this.modal, {});
+  }
+
+  /** Hiển thị modal */
+  showModal() {
+    if (this.newModal) {
+      this.newModal.show();
+    } else {
+      console.error("Modal instance is not initialized.");
+    }
+  }
+
+  /** Ẩn modal */
+  hideModal() {
+    if (this.newModal) {
+      this.newModal.hide();
+    } else {
+      console.error("Modal instance is not initialized.");
+    }
+    this.reset();
+  }
+
+  /** Thiết lập loading */
+  setLoading() {
+    if (this.modal) {
+      this.loading = document.createElement("div");
+      this.loading.className = "spinner-border text-info spinner-border-sm";
+      this.loading.role = "status";
+      this.loading.innerHTML = '<span class="visually-hidden">Loading...</span>';
+      this.loading.style.position = "absolute";
+      this.loading.style.top = "15%";
+      this.loading.style.left = "50%";
+      this.modal.querySelector(".modal-body").appendChild(this.loading);
+      this.loading.style.display = "block"; // Hiển thị loading
+    }
+  }
+
+  /** Ẩn loading */
+  hideLoading() {
+    if (this.loading) {
+      this.loading.style.display = "none";
+    }
+  }
+
+  /** Đổ dữ liệu mặc định vào form */
+  async fillFormWithDefaults(dataDefault) {
+    dataDefault.forEach(async (item) => {
+      const element = this.form.form.querySelector(item.dom);
+      if (element) {
+        let value = typeof item.value === "function" ? await item.value() : item.value;
+        if (["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName)) {
+          element.value = value;
+        } else {
+          element.textContent = value;
+        }
+      } else {
+        console.error("Không có phần tử này: " + item.dom + " trong DOM");
+      }
+    });
+  }
+
+  /** Đổ dữ liệu từ API vào form */
+  fillFormWithData(data) {
+    const elements = this.form.elements;
+    for (let item of elements) {
+      const name = item.getAttribute("name");
+      if (name && data.hasOwnProperty(name)) {
+        let value = data[name];
+        if (item.hasAttribute("data-choice")) {
+          let id = item.getAttribute("id");
+          let choiceInstance = this.form.choice[`#${id}`];
+          if (choiceInstance) {
+            choiceInstance.setChoiceByValue(String(value));
+          } else {
+            console.error(`Choice instance for #${id} is not initialized.`);
+          }
+        } else {
+          if (this.priceFormat.includes(name)) {
+            item.value = numberFormat(value);
+          } else if (this.dateFormat.includes(name)) {
+            item.value = dateTimeFormat(value);
+          } else {
+            item.value = value;
+          }
+        }
+      }
+    }
+  }
+
+  /** Reset modal khi đóng */
+  resetModal() {
+    if (this.modal) {
+      this.modal.addEventListener("hidden.bs.modal", () => {
+        this.reset();
+      });
+    }
+  }
+
+  /** Reset form và các phần tử modal */
+  reset() {
+    if (this.form){
+      this.form.reset();
+    }
+    if (this.loading) this.loading.style.display = "none";
+  }
+}
+
+/**Class có tác dụng thực hiện validate các trường */
+class ValidateHelpers {
+  /**
+ * @param {object} form  nhận vào form cần validate
+ * @param {object} validations  nhận vào các quy tắc cần validate
+   */
+  constructor(form, validations) {
+    this.form = form;
+    this.validations = validations;
+  }
+
+  /**
+   * Hàm validateForm form thông thường
+   * @param {Boolean} textSelect nếu là false thì trả về mảng dữ liệu, ngược lại trả về nội dung thẻ select đã được chọn
+   * @returns {Object|Boolean} Trả về object chứa dữ liệu nếu thành công, false nếu có lỗi
+   */
+  validateForm(textSelect = false) {
+    const dom = this.collectFormElements(textSelect);
+    const data = {};
+
+    // Thực hiện validateForm theo bảng thiết kế
+    if (!this.runValidation(dom)) return false;
+
+    // Thu thập dữ liệu từ các trường
+    for (let key in dom) {
+      let item = dom[key];
+      data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
+    }
+
+    return data;
+  }
+
+  /**
+   * Hàm validate các hàng trong table
+   * @param {String} tbodySelector selector cho tbody
+   * @returns {Array|Boolean} Trả về mảng dữ liệu các hàng nếu thành công, false nếu có lỗi
+   */
+  validateRow(tbodySelector) {
+    const tbodyElement = document.querySelector(tbodySelector);
+    if (!check(tbodyElement, tbodyElement)) return;
+
+    const rows = tbodyElement.querySelectorAll("tr");
+    const data = [];
+
+    for (let row of rows) {
+      const dom = this.collectRowElements(row);
+
+      // Thực hiện validate cho mỗi hàng
+      if (!this.runValidation(dom)) return false;
+
+      // Thu thập dữ liệu từ các hàng
+      const rowData = {};
+      for (let key in dom) {
+        rowData[key] = dom[key].value;
+      }
+      data.push(rowData);
+    }
+
+    return data;
+  }
+
+  /**
+   * Thu thập các thẻ input, select, textarea trong form
+   * @param {Boolean} textSelect 
+   * @returns {Object} object chứa các thẻ DOM đã thu thập
+   */
+  collectFormElements(textSelect) {
+    const elements = [...this.form.querySelectorAll("select, input, textarea")];
+    const dom = {};
+
+    elements.forEach((item) => {
+      let name = item.getAttribute("name");
+      if (name) {
+        dom[name] = item;
+        if (textSelect && item.tagName.toLowerCase() === "select") {
+          dom[`text_${name}`] = item.textContent;
+        }
+      }
+    });
+
+    return dom;
+  }
+
+  /**
+   * Thu thập các thẻ input, select, textarea trong một hàng của table
+   * @param {HTMLElement} row đối tượng tr đại diện hàng <tr>
+   * @returns {Object} object chứa các thẻ DOM đã thu thập từ hàng
+   */
+  collectRowElements(row) {
+    const elements = [...row.querySelectorAll("select, input, textarea")];
+    const rowData = {};
+
+    elements.forEach((item) => {
+      let name = item.getAttribute("name");
+      if (name) {
+        rowData[name] = item;
+      }
+    });
+
+    return rowData;
+  }
+
+  /**
+   * Chạy quá trình validate theo bảng thiết kế
+   * @param {Object} dom object chứa các phần tử cần validate
+   * @returns {Boolean} Trả về true nếu thành công, false nếu có lỗi
+   */
+  runValidation(dom) {
+    for (let { name, defaultName, condition, message } of this.validations) {
+      if (Array.isArray(name)) {
+        let fieldValues = name.map((item) => dom[item]?.value);
+        if (!this.checkMultipleFields(fieldValues, name, condition, dom, message, defaultName)) return false;
+      } else {
+        let field = dom[name];
+        if (field && !this.checkSingleField(field, condition, message)) return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Kiểm tra điều kiện với nhiều trường hợp
+   * @param {Array} fieldValues Mảng giá trị các trường
+   * @param {Array} names Mảng tên các trường
+   * @param {Function} condition Hàm điều kiện
+   * @param {Object} dom object chứa các phần tử
+   * @param {String} message Thông báo lỗi
+   * @param {String} defaultName Tên mặc định của trường
+   * @returns {Boolean} Trả về true nếu hợp lệ, false nếu không
+   */
+  checkMultipleFields(fieldValues, names, condition, dom, message, defaultName) {
+    if (fieldValues.every((value) => value !== undefined)) {
+      if (!condition(...fieldValues)) {
+        names.forEach((name) => {
+          let field = dom[defaultName] || dom[name];
+          if (field) changeValidateMessage(field, true, message, ["p-2", "small"]);
+        });
+        return false;
+      }
+      names.forEach((name) => {
+        let field = dom[defaultName] || dom[name];
+        if (field) changeValidateMessage(field, false, "", []);
+      });
+    }
+    return true;
+  }
+
+  /**
+   * Kiểm tra điều kiện với một trường duy nhất
+   * @param {HTMLElement} field Trường cần kiểm tra
+   * @param {Function} condition Hàm điều kiện
+   * @param {String} message Thông báo lỗi
+   * @returns {Boolean} Trả về true nếu hợp lệ, false nếu không
+   */
+  checkSingleField(field, condition, message) {
+    if (!condition(field.value)) {
+      changeValidateMessage(field, true, message, ["p-2", "small"]);
+      return false;
+    }
+    if (field.getAttribute("min-custom") && parseFloat(field.value) < parseFloat(field.getAttribute("min-custom"))) {
+      changeValidateMessage(field, true, `Số lượng phải lớn hơn hoặc bằng ${field.getAttribute("min-custom")}`, ["p-2", "small"]);
+      return false;
+    }
+    if (field.getAttribute("max-custom") && parseFloat(field.value) > parseFloat(field.getAttribute("max-custom"))) {
+      changeValidateMessage(field, true, `Số lượng phải nhỏ hơn hoặc bằng ${field.getAttribute("max-custom")}`, ["p-2", "small"]);
+      return false;
+    }
+    changeValidateMessage(field, false, "", []);
+    return true;
+  }
+}
+
 /**Hàm có tác dụng tạo ra mã theo kiểu tịnh tiến 
  * @param {string} baseCode là mã của từng loại phiếu
 */
@@ -133,6 +545,7 @@ class FormHelpers extends RequestServerHelpers {
     ];
      * @param {string} api api sẽ sử dụng cho form đó
      * @param {String} method  nhận vào method thực hiện gửi dữ liệu
+     * @param {string} modal id modal cần khởi tạo
      * @param {boolean} [debug=false]  được sử dụng để test api nếu là true thì sẽ dừng chương trình sau khi gọi api và console.log() response
      * value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id
      * subdata nhận vào object các trường cần bổ sung để gửi data. Dùng cho trường hợp trong form thiếu trường dữ liệu
@@ -146,51 +559,47 @@ class FormHelpers extends RequestServerHelpers {
      * exportExcel = {api: "API xuất file", name: "Tên file xuất"}
      * Lưu ý: Mặc định sẽ lấy phần data trả về làm param và gọi api để tải file. Phải khởi tạo layout và ghi đè layout trước khi ghi đè dữ liệu
      * responseHandler là một object. Được sử dụng sau khi ấn submit và sẽ chạy hàm bên trong object đó
-
      * Cú pháp: this.responseHandler = {code: "mã trả về. Điều kiện để chạy function", function: () => {}}
-
      */
-  constructor(
-    formSelector,
-    startHandleFormSubmit = false,
-    validations,
-    api,
-    method,
-    layout,
-    debug = false
-  ) {
+  constructor(formSelector, startHandleFormSubmit = false, validations, api, method, layout, modal, debug = false) {
     super(api); // Gọi hàm khởi tạo của lớp cha
     this.form = document.querySelector(formSelector);
-    this.api = api;
     if (!check(this.form, formSelector)) return;
+
+    this.api = api;
     this.validations = validations;
     this.layout = layout;
-    // sử dụng để biết xem khi submit có xuất file excel không
-    this.exportExcel = false;
+
+
     this.value = "id";
     this.subdata = {};
+    this.param = {};
+    // lưu trữ khi khởi tạo choice
+    this.choice = {};
+
     this.notRest = [];
     this.priceFormat = [];
     this.dateFormat = [];
+
+    this.exportExcel = false;
+    this.responseHandler = false;
     this.resetStatus = true;
     this.modalStatus = true;
     this.table = true;
-    this.param = {};
-
-    // lưu trữ khi khởi tạo choice
-    this.choice = {};
-    // lưu trữ modal khi khởi tạo
-    this.loading = "";
-    this.modal = "";
-    this.newModal = "";
 
     // tự động khởi tạo choices khi khởi tạo FormHelpers
     this.startChoice();
     // tự động khởi tạo form submit
-    if (startHandleFormSubmit)
-      this.handleFormSubmit(method, this.layout, debug);
-  }
+    if (startHandleFormSubmit) this.handleFormSubmit(method, this.layout, debug);
 
+    // khởi tạo class event 
+    this.eventHelpers = new EventHelpers(this.form);
+    // khởi tạo class validate để validate form khi submit
+    this.validate = new ValidateHelpers(this.form, this.validations);
+    // khởi tạo class modal
+    this.modal = new ModalHelpers(this, modal, this.api);
+
+  }
   /**
    * khởi tạo choice
    * @param {string} choiceArray là mộ mảng chứa id của 1 thẻ
@@ -208,6 +617,8 @@ class FormHelpers extends RequestServerHelpers {
       });
   }
 
+
+
   /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ select khác
    * @param {string} selectChange ID, Class của thẻ được chọn
    * @param {string} selectEeceive ID, Class của thẻ được nhận
@@ -219,20 +630,12 @@ class FormHelpers extends RequestServerHelpers {
    * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties. Các trường phụ này sẽ lưu vào thẻ selectEeceive
    * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
    */
-  eventListenerChange(
-    selectChange,
-    selectEeceive,
-    api,
-    key,
-    label,
-    labelDefault,
-    customProperties = []
-  ) {
+  eventListenerChange(selectChange, selectEeceive, api, key, label, labelDefault, customProperties = []) {
+
     // Tìm đối tượng Choices cho selectChange và selectEeceive
     let choiceSelectEeceive = this.choice[selectEeceive];
     // Kiểm tra nếu đối tượng Choices tồn tại
     if (!check(choiceSelectEeceive, selectEeceive, "choice")) return;
-
     // Thêm sự kiện change cho selectChange
     this.eventListenerChangeGetData(selectChange, async (e) => {
       // xóa bỏ giá trị đã được chọn cũ
@@ -254,7 +657,6 @@ class FormHelpers extends RequestServerHelpers {
         return;
       }
       let data = res.data?.data?.length > 0 ? res.data.data : res.data;
-
       let dataChoice = data.map((item) => {
         let labelValue;
         if (Array.isArray(label)) {
@@ -264,7 +666,6 @@ class FormHelpers extends RequestServerHelpers {
           // Nếu label là một chuỗi, lấy giá trị của trường đó
           labelValue = item[label];
         }
-
         let customProps = {};
         if (Array.isArray(customProperties) && customProperties.length > 0) {
           customProperties.forEach((prop) => {
@@ -279,7 +680,6 @@ class FormHelpers extends RequestServerHelpers {
           customProperties: customProps,
         };
       });
-
       // thêm giá trị mặc định
       dataChoice.unshift({ value: "", label: labelDefault });
       // trả dữ liệu về thẻ sleect
@@ -287,6 +687,8 @@ class FormHelpers extends RequestServerHelpers {
       choiceSelectEeceive._handleLoadingState(false);
     });
   }
+
+
 
   /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ khác
      * @param {string} selectChange ID, Class của thẻ được chọn
@@ -300,25 +702,24 @@ class FormHelpers extends RequestServerHelpers {
      * @param {string} key nhận vào param của api,
      */
   eventListenerChangeForData(selectChange, receive, value, api = "", key = "") {
-    // Lấy phần tử DOM cho selectChange
-    const domSelectChange = document.querySelector(selectChange);
-    if (!check(domSelectChange, selectChange)) return;
 
+    // Lấy phần tử DOM cho selectChange
+    const domSelectChange = this.form.querySelector(selectChange);
+    if (!check(domSelectChange, selectChange)) return;
     // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
     const isReceiveArray = Array.isArray(receive);
-    const domReceive = isReceiveArray ? null : document.querySelector(receive);
-
+    const domReceive = isReceiveArray ? null : this.form.querySelector(receive);
     if (!isReceiveArray && !domReceive) {
       console.error("Không tìm thấy id hoặc class này: " + receive);
       return;
     }
-
     // Hàm xử lý cập nhật dữ liệu vào domReceive hoặc danh sách domReceive
     const updateReceive = (data) => {
       if (isReceiveArray) {
         receive.forEach((item) => {
           const dataCustomProperties = data[item.value];
-          let dom = document.querySelector(item.dom);
+          // chỉ cho phép tìm các phần tử ở trong form
+          let dom = this.form.querySelector(item.dom);
           this.updateDomReceive(dom, dataCustomProperties);
         });
       } else if (api) {
@@ -327,32 +728,27 @@ class FormHelpers extends RequestServerHelpers {
         this.updateDomReceive(domReceive, data);
       }
     };
-
     // Thêm sự kiện change cho selectChange
+
     domSelectChange.addEventListener("addItem", async (e) => {
       let selectedChoice = e.detail;
-
       if (!selectedChoice || !selectedChoice.customProperties) {
         console.error("Lựa chọn không có customProperties.");
         return;
       }
-
       if (api) {
         // Hiển thị trạng thái "Đang tìm kiếm"
         this.updateDomReceive(domReceive, "Đang tìm kiếm");
-
         try {
           // Gửi yêu cầu GET đến API
           const res = await this.getData(`${api}?${key}=${e.target.value}`);
           let dataToDisplay = "Không tìm thấy dữ liệu";
-
           if (res.status === 200) {
             const data = res.data?.data?.length > 0 ? res.data.data : res.data;
             if (data) {
               dataToDisplay = data[value];
             }
           }
-
           updateReceive(dataToDisplay);
         } catch (error) {
           console.error("Lỗi khi gọi API: ", error);
@@ -372,26 +768,79 @@ class FormHelpers extends RequestServerHelpers {
    * @param {callback} callback là một dùng để lấy ra dữ liệu
    */
   eventListenerChangeGetData(selectChange, callback) {
-    const domSelectChange = document.querySelector(selectChange);
+    const domSelectChange = this.form.querySelector(selectChange);
     if (!check(domSelectChange, selectChange)) return;
-
     // Xóa bỏ event listener cũ (nếu có)
     const newCallback = async (e) => {
       const value = e.target.value;
       if (callback) callback(value); // Gọi callback với giá trị
     };
-
     domSelectChange.removeEventListener("change", domSelectChange._callback);
     domSelectChange._callback = newCallback;
-
     domSelectChange.addEventListener("change", newCallback);
   }
+
+  /**Hàm có tác dụng lắng nghe sự kiện change của 1 thẻ select và xóa dữ liệu của 1 thẻ khác 
+   * @param {string} selectChange ID, Class của thẻ được chọn
+   * @param {string} receive name của thẻ được nhận. Nếu bạn có nhiều nơi cần nhận dữ liệu đồng nghĩa với việc bạn đã lưu dữ liệu vào customProperties thì hãy truyền receive theo cách sau:
+   * const received = [ "ratio", "price",];
+   */
+  eventChangeClearField(selectChange, receive) {
+
+    // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
+    const isReceiveArray = Array.isArray(receive);
+    
+    const domReceive = isReceiveArray ? null : this.form.querySelector(`[name="${receive}"]`);
+
+    if (!isReceiveArray && !domReceive) {
+      console.error("Không tìm thấy id hoặc class này: " + receive);
+      return;
+    }
+
+    // Hàm xử lý cập nhật dữ liệu vào domReceive hoặc danh sách domReceive
+    const clearReceive = () => {
+      if (isReceiveArray) {
+        receive.forEach((item) => {
+          // Chỉ cho phép tìm các phần tử ở trong form
+          let dom = this.form.querySelector(`[name="${item}"]`);
+          if (!dom) return; // Nếu không tìm thấy phần tử, bỏ qua
+          if (dom.getAttribute("data-choice")) {
+            let id = dom.getAttribute("id");
+            // Tìm đối tượng Choices
+            let choiceInstance = this.choice[`#${id}`];
+            if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
+          } else {
+            dom.value = "";
+          }
+        });
+      } else {
+        if (domReceive) {
+          if (domReceive.getAttribute("data-choice")) {
+            let id = domReceive.getAttribute("id");
+            // Tìm đối tượng Choices
+            let choiceInstance = this.choice[`#${id}`];
+            if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
+          } else {
+            domReceive.value = ""; // Xóa giá trị của input và textarea
+          }
+        }
+      }
+    };
+
+    // Thêm sự kiện change cho domSelectChange
+    this.eventHelpers.change(selectChange, (e) => {
+      clearReceive(); // Gọi hàm clearReceive khi có sự kiện change
+    });
+  }
+
 
   // Hàm cập nhật domReceive tùy theo loại thẻ hàm dùng nội bộ
   updateDomReceive(domReceive, content) {
     if (domReceive.tagName === "INPUT" || domReceive.tagName === "TEXTAREA") {
+      domReceive.value = "";
       domReceive.value = checkOutput(content);
     } else {
+      domReceive.innerHTML = "";
       domReceive.innerHTML = checkOutput(content);
     }
   }
@@ -406,30 +855,19 @@ class FormHelpers extends RequestServerHelpers {
    * @param {string} params là 1 object chứa các tùy chọn kèm theo khi gửi request
    * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
    */
-  async selectMore(
-    select,
-    api,
-    key,
-    label,
-    labelDefault,
-    customProperties = [],
-    params = {}
-  ) {
+  async selectMore(select, api, key, label, labelDefault, customProperties = [], params = {}) {
     let myTimeOut = null;
     let selectDom = document.querySelector(select);
     let choiceSelect = this.choice[select];
     if (!check(selectDom, select)) return;
     if (!check(choiceSelect, select, "choice")) return;
-
     // Lắng nghe sự kiện tìm kiếm
     selectDom.addEventListener("search", async (e) => {
       let query = e.detail.value.trim();
       clearTimeout(myTimeOut);
-
       myTimeOut = setTimeout(async () => {
         choiceSelect.setChoiceByValue("");
         choiceSelect._handleLoadingState();
-
         try {
           this.params = { [key]: query, ...params };
           let res = await this.getData(api);
@@ -439,7 +877,6 @@ class FormHelpers extends RequestServerHelpers {
             return;
           }
           let data = res.data?.data?.length > 0 ? res.data.data : res.data;
-
           let choiceData = data.map((item) => {
             let labelValue;
             if (Array.isArray(label)) {
@@ -449,26 +886,18 @@ class FormHelpers extends RequestServerHelpers {
               // Nếu label là một chuỗi, lấy giá trị của trường đó
               labelValue = item[label];
             }
-
             let customProps = {};
-            if (
-              Array.isArray(customProperties) &&
-              customProperties.length > 0
-            ) {
+            if (Array.isArray(customProperties) && customProperties.length > 0) {
               customProperties.forEach((prop) => {
-                if (item.hasOwnProperty(prop)) {
-                  customProps[prop] = item[prop];
-                }
+                if (item.hasOwnProperty(prop)) customProps[prop] = item[prop];
               });
             }
-
             return {
               label: labelValue,
               value: item[this.value],
               customProperties: customProps,
             };
           });
-
           // Thêm giá trị mặc định
           choiceData.unshift({ value: "", label: labelDefault });
           choiceSelect.setChoices(choiceData, "value", "label", true); // Đổ dữ liệu mới vào select
@@ -499,7 +928,6 @@ class FormHelpers extends RequestServerHelpers {
       let res = await this.getData(api);
       if (res.status === 200) {
         let data = res.data.data?.length > 0 ? res.data.data : res.data;
-
         let dataChoice = data.map((item) => {
           let labelValue;
           if (Array.isArray(label)) {
@@ -509,7 +937,6 @@ class FormHelpers extends RequestServerHelpers {
             // Nếu label là một chuỗi, lấy giá trị của trường đó
             labelValue = item[label];
           }
-
           let customProps = {};
           if (Array.isArray(customProperties) && customProperties.length > 0) {
             customProperties.forEach((prop) => {
@@ -518,7 +945,6 @@ class FormHelpers extends RequestServerHelpers {
               }
             });
           }
-
           return {
             label: labelValue,
             value: item[this.value],
@@ -542,7 +968,6 @@ class FormHelpers extends RequestServerHelpers {
     for (let item of elements) {
       // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
       if (this.notRest.includes(item.name)) continue;
-
       // kiểm tra đối tượng choice
       if (item.hasAttribute("data-choice")) {
         let id = item.getAttribute("id");
@@ -557,241 +982,6 @@ class FormHelpers extends RequestServerHelpers {
     clearAllClassValidate(this.form);
   }
 
-  /** Hàm có tác dụng validate  form
-   * @param {String} textSelect nếu là false thì sẽ trả về mảng dữ liệu, ngược lại thì trả về nội dung thẻ select đã được chọn
-   */
-  validate(textSelect = false) {
-    const dom = {};
-    const data = {};
-    // Lấy ra form và kiểm tra xem form có tồn tại không
-    const form = this.form;
-    if (!form) {
-      console.error(`Form with id ${this.form} not found.`);
-      return false; // Trả về false nếu không tìm thấy form
-    }
-
-    let selects = form.querySelectorAll("select");
-    let inputs = form.querySelectorAll("input");
-    let textareas = form.querySelectorAll("textarea");
-
-    // Thu thập tất cả các thẻ select, input, textarea vào đối tượng dom
-    let collectElements = (elements) => {
-      elements.forEach((item) => {
-        let name = item.getAttribute("name");
-        if (name) {
-          dom[name] = item;
-
-          // Nếu thẻ là select, thêm text đã chọn vào dom
-          if (textSelect && item.tagName.toLowerCase() === "select")
-            dom[`text_${name}`] = item.textContent;
-        }
-      });
-    };
-
-    collectElements(selects);
-    collectElements(inputs);
-    collectElements(textareas);
-
-    // Kiểm tra dựa theo bảng thiết kế
-    for (let validate of this.validations) {
-      let { name, defaultName, condition, message } = validate;
-      // Kiểm tra điều kiện cơ bản
-      if (Array.isArray(name)) {
-        // Xử lý quy tắc cần nhiều tham số
-        // Trường hợp name là một mảng
-        let fieldValues = name.map((item) => dom[item]?.value);
-        if (fieldValues.every((value) => value !== undefined)) {
-          if (!condition(...fieldValues)) {
-            name.forEach((name) => {
-              let field = "";
-              if (defaultName) {
-                field = dom[defaultName];
-              } else {
-                field = dom[name];
-              }
-              if (field) {
-                changeValidateMessage(field, true, message, ["p-2", "small"]);
-              }
-            });
-            return false;
-          }
-
-          name.forEach((name) => {
-            let field = "";
-            if (defaultName) {
-              field = dom[defaultName];
-            } else {
-              field = dom[name];
-            }
-            if (field) {
-              changeValidateMessage(field, false, "", []);
-            }
-          });
-        }
-      } else {
-        let field = dom[name];
-        if (field) {
-          if (!condition(field.value)) {
-            changeValidateMessage(field, true, message, ["p-2", "small"]);
-            return false;
-          }
-          // Kiểm tra nếu có thuộc tính min-custom
-          if (field.getAttribute("min-custom")) {
-            let minValue = parseFloat(field.getAttribute("min-custom"));
-            if (parseFloat(field.value) < minValue) {
-              changeValidateMessage(
-                field,
-                true,
-                `Số lượng phải lớn hơn hoặc bằng ${minValue}`,
-                ["p-2", "small"]
-              );
-              return false;
-            }
-          }
-
-          // Kiểm tra nếu có thuộc tính max-custom
-          if (field.getAttribute("max-custom")) {
-            let maxValue = parseFloat(field.getAttribute("max-custom"));
-            if (parseFloat(field.value) > maxValue) {
-              changeValidateMessage(
-                field,
-                true,
-                `Số lượng phải nhỏ hơn hoặc bằng ${maxValue}`,
-                ["p-2", "small"]
-              );
-              return false;
-            }
-          }
-
-          // Nếu không có lỗi nào, xóa thông báo lỗi
-          changeValidateMessage(field, false, "", []);
-        }
-      }
-    }
-
-    // Nếu tất cả các kiểm tra đều thành công, thu thập dữ liệu từ các trường
-    for (let key in dom) {
-      let item = dom[key];
-      if (item instanceof HTMLElement) {
-        // Nếu item là DOM element, lấy giá trị của nó
-        data[key] = item.value;
-      } else {
-        // Nếu không phải là DOM element, trả về item trực tiếp
-        data[key] = item;
-      }
-    }
-
-    return data;
-  }
-
-  /**Hàm có tác dụng validate form nằm trong table
-   * @param {String} tbody  Nhận vào id, class của tbody
-   */
-  validateRow(tbody) {
-    const dom = [];
-    const data = [];
-
-    // Lấy ra form và kiểm tra xem form có tồn tại không
-    const form = this.form;
-    if (!form) {
-      console.error(`Form with id ${this.form} not found.`);
-      return false; // Trả về false nếu không tìm thấy form
-    }
-
-    const tbodyElement = document.querySelector(tbody);
-    if (!tbodyElement) {
-      console.error(`Tbody with selector '${tbody}' not found.`);
-      return false; // Ngăn chặn lỗi tiếp theo
-    }
-
-    // Thu thập tất cả các thẻ select, input, textarea vào đối tượng dom
-    const collectElements = (elements, rowData) => {
-      elements.forEach((item) => {
-        let name = item.getAttribute("name");
-        if (name) {
-          rowData[name] = item;
-        }
-      });
-    };
-
-    let rows = tbodyElement.querySelectorAll("tr");
-
-    rows.forEach((row) => {
-      let rowData = {}; // Tạo một đối tượng cho mỗi hàng
-
-      let selects = row.querySelectorAll("select");
-      let inputs = row.querySelectorAll("input");
-      let textareas = row.querySelectorAll("textarea");
-
-      collectElements(selects, rowData);
-      collectElements(inputs, rowData);
-      collectElements(textareas, rowData);
-
-      dom.push(rowData); // Thêm đối tượng hàng vào mảng dom
-    });
-    // Kiểm tra dựa theo bảng thiết kế
-    for (let { name, condition, message } of this.validations) {
-      let isValid = true; // Biến để theo dõi trạng thái hợp lệ của hàng
-
-      for (let item of dom) {
-        let field = item[name]; // Lấy giá trị từ đối tượng hàng
-        if (field) {
-          if (!condition(field.value)) {
-            changeValidateMessage(field, true, message, ["p-2", "small"]);
-            isValid = false; // Đánh dấu rằng kiểm tra không thành công
-          }
-
-          // Kiểm tra nếu có thuộc tính min-custom
-          if (field.getAttribute("min-custom")) {
-            let minValue = parseFloat(field.getAttribute("min-custom"));
-            if (parseFloat(field.value) < minValue) {
-              changeValidateMessage(
-                field,
-                true,
-                `Số lượng phải lớn hơn hoặc bằng ${minValue}`,
-                ["p-2", "small"]
-              );
-              isValid = false;
-            }
-          }
-
-          // Kiểm tra nếu có thuộc tính max-custom
-          if (field.getAttribute("max-custom")) {
-            let maxValue = parseFloat(field.getAttribute("max-custom"));
-            if (parseFloat(field.value) > maxValue) {
-              changeValidateMessage(
-                field,
-                true,
-                `Số lượng phải nhỏ hơn hoặc bằng ${maxValue}`,
-                ["p-2", "small"]
-              );
-              isValid = false;
-            }
-          }
-
-          // Nếu không có lỗi nào, xóa thông báo lỗi
-          if (isValid) {
-            changeValidateMessage(field, false, "", []);
-          }
-        }
-      }
-
-      if (!isValid) {
-        return false; // Trả về false nếu có lỗi
-      }
-    }
-    // Nếu tất cả các kiểm tra đều thành công, thu thập dữ liệu từ các trường
-    dom.forEach((rowData) => {
-      let rowValues = {};
-      for (let key in rowData) {
-        rowValues[key] = rowData[key].value;
-      }
-      data.push(rowValues); // Thêm đối tượng hàng vào mảng data
-    });
-
-    return data;
-  }
-
   /**thực hiện khởi tạo modal
    * @param {String} modal nhận vào 1 id, class modal
    * @param {String} loading nhận vào 1 id class của 1 loadding
@@ -802,25 +992,23 @@ class FormHelpers extends RequestServerHelpers {
    * { dom: "Id hoặc class đổ ra dữ liệu mặc định", value: "Dữ liệu mặc định"},
    * ]
    */
+
   startModal(modal, show = "", dataDefault = []) {
+
     const openModal = () => {
       this.modal = document.querySelector(modal);
       if (!check(this.modal, modal)) return;
       this.newModal = new bootstrap.Modal(this.modal, {});
-
       // Tạo phần tử loading và thêm vào modal
       this.loading = document.createElement("div");
       this.loading.className = "spinner-border text-info spinner-border-sm";
       this.loading.role = "status";
       this.loading.innerHTML =
         '<span class="visually-hidden">Loading...</span>';
-
       this.loading.style.position = "absolute";
       this.loading.style.top = "15%";
       this.loading.style.left = "50%";
-
       this.modal.querySelector(".modal-body").appendChild(this.loading);
-
       // Khởi tạo modal và hiển thị phần loading
       this.newModal.show();
       this.loading.style.display = "block"; // Hiển thị loading
@@ -828,10 +1016,9 @@ class FormHelpers extends RequestServerHelpers {
       this.modal.addEventListener("shown.bs.modal", () => {
         this.loading.style.display = "none"; // Ẩn loading khi modal đã hiển thị
         this.form.style.display = "flex"; // Hiển thị form
-
         if (dataDefault.length > 0) {
           dataDefault.forEach(async (item) => {
-            const element = document.querySelector(item.dom);
+            const element = this.form.querySelector(item.dom);
             if (element) {
               // Kiểm tra xem phần tử có tồn tại không
               let value;
@@ -862,11 +1049,11 @@ class FormHelpers extends RequestServerHelpers {
         this.reset();
         this.newModal.hide();
       });
+
     };
 
     if (show) {
       const element = document.querySelector(show);
-
       if (element) {
         // Kiểm tra nếu phần tử tồn tại
         element.addEventListener("click", openModal);
@@ -875,6 +1062,8 @@ class FormHelpers extends RequestServerHelpers {
       openModal();
     }
   }
+
+
 
   /**Hàm có tác dụng khởi tạo modal edit và đổ ra dữ liệu
    * @param {String} modal nhận vào 1 id, class modal
@@ -892,17 +1081,13 @@ class FormHelpers extends RequestServerHelpers {
       this.loading.role = "status";
       this.loading.innerHTML =
         '<span class="visually-hidden">Loading...</span>';
-
       this.loading.style.position = "absolute";
       this.loading.style.top = "15%";
       this.loading.style.left = "50%";
-
       this.modal.querySelector(".modal-body").appendChild(this.loading);
-
       this.params = params;
       let response = await this.getData(this.api);
       this.newModal.show();
-
       // loading sau khi modal đã được hiển thị
       this.newModal._element.addEventListener("shown.bs.modal", () => {
         if (response.status !== 200) {
@@ -913,16 +1098,13 @@ class FormHelpers extends RequestServerHelpers {
         let data = response.data?.data?.length
           ? response.data.data[0]
           : response.data[0];
-
         // Lấy tất cả các phần tử trong form
         const elements = this.form.elements;
-
         for (let item of elements) {
           const name = item.getAttribute("name");
           // tìm kiếm và lấy dữ liệu của data dựa vào name thẻ
           if (name && data.hasOwnProperty(name)) {
             let value = data[name];
-
             // Kiểm tra nếu phần tử là Choices instance và cập nhật Choices
             if (item.hasAttribute("data-choice")) {
               let id = item.getAttribute("id");
@@ -959,21 +1141,21 @@ class FormHelpers extends RequestServerHelpers {
     }
   }
 
+
+
   /**Hàm có tác dụng gửi thông tin form
    * @param {string} api Nhận vào ip thực hiện việc gửi dữ liệu
    * @param {boolean} [debug=false]  được sử dụng để test api
    */
   async submitForm(method, debug = false) {
     try {
-      let data =
-        this.table === true ? this.validate() : this.validateRow(this.table);
+      let data = this.table === true ? this.validate.validateForm() : this.validate.validateRow(this.table);
       if (data !== false) {
         // Kiểm tra xem subdata có trống  hay không
         if (Object.keys(this.subdata).length > 0) {
           // Nếu subdata là mảng, nối nó với data
           data = { ...data, ...this.subdata };
         }
-
         // format dữ liệu trước khi gửi đi
         if (this.priceFormat.length > 0) {
           this.priceFormat.forEach((name) => {
@@ -983,7 +1165,6 @@ class FormHelpers extends RequestServerHelpers {
             }
           });
         }
-
         if (this.dateFormat.length > 0) {
           this.dateFormat.forEach((name) => {
             // Sử dụng dateFormat thay vì priceFormat
@@ -993,37 +1174,30 @@ class FormHelpers extends RequestServerHelpers {
             }
           });
         }
-
         const res = await axios({
           method: method,
           url: this.api,
           data: data,
           params: this.params,
         });
-
         if (debug) {
           console.log(res);
           return false;
         }
         // nếu có yêu cầu sau gì đó sau khi gọi api, kiểm tra status có trùng với yêu cầu không, thực hiện gọi hàm đó
-
         if (this.responseHandler) if (this.responseHandler.status === res.data.status) this.responseHandler.function();
-
         // Kiểm tra trạng thái trả về
         if (res.data.status >= 400) {
           showErrorMD(res.data[messageError]);
           return false;
         }
-
         // Hiển thị thông điệp thành công và thực hiện các thao tác cần thiết
         showMessageMD(res.data[messageSussces]);
-
         if (this.modalStatus) {
           // Ẩn form và đóng modal
           this.form.style.display = "none";
           this.newModal.hide();
         }
-
         // Trả về đối tượng kết quả
         return { status: true, data: res.data.data };
       }
@@ -1031,7 +1205,6 @@ class FormHelpers extends RequestServerHelpers {
       // Xử lý lỗi
       showErrorMD("Vui lòng gọi IT");
       console.error(err);
-
       return { status: false, error: err };
     }
   }
@@ -1052,9 +1225,7 @@ class FormHelpers extends RequestServerHelpers {
       btnLoading(submitButton, false, submitButtonTextContent);
       if (response && response.status) {
         await layoutInstance.dataUI();
-        if (this.resetStatus === true) {
-          this.reset();
-        }
+        if (this.resetStatus === true) this.reset();
         if (this.exportExcel) {
           let api = `${this.exportExcel.api}${response.data}`;
           this.layout.exportExcel("", api, this.exportExcel.name);
@@ -1062,7 +1233,205 @@ class FormHelpers extends RequestServerHelpers {
       }
     });
   }
+
 }
+
+/**class thao tác với form chứa tabel. Tức là khi bạn ấn submit form mà chưa muốn gọi api giửi đi mà muốn hiển thị lại giao diện cho ngừơi dùng xem*/
+class FormTableHelpers extends FormHelpers {
+  /**
+   * @param {string} formSelector Nhận vào id class của 1 form cần khởi tạo
+   * @param {Object} validations  nhận vào bản thiết kế các trường cần kiểm tra bao gồm
+   * const validations = [
+   {name: "tên thẻ", condition: value => điều kiện, message: "thông báo người dùng"},
+   ]. Trong trường hợp bạn có các trường trong cùng 1 form cần validate với nhau thì thực hiện theo cách sau:
+   const validations = [
+      { 
+          name: ["quanlityInResource", "kl_quy_doi"], 
+          defaultName: "kl_xuat",
+          condition: (quanlity_in_resource, kl_quy_doi) => Number(kl_quy_doi) <= Number(quanlity_in_resource), 
+          message: "Khối lượng xuất không đủ" 
+      },
+  ];
+   * @param {string} api api sẽ sử dụng cho form đó
+   * @param {Đối tượng} layout  nhận vào đối tượng layout được khởi tạo
+   * @param {callback} template nội dung bạn sẽ hiển thị khi ấn submit từ form xuống bảng. Mặc định là có nút xóa
+   * @param {string} modal id modal cần khởi tạo
+   * @param {boolean} [debug=false]  được sử dụng để test api nếu là true thì sẽ dừng chương trình sau khi gọi api và console.log() response
+   * method  nhận vào method thực hiện gửi dữ liệu mặc định là post
+   * value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id
+   * subdata nhận vào object các trường cần bổ sung để gửi data. Dùng cho trường hợp trong form thiếu trường dữ liệu
+   * notRest Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
+   * priceFormat nhận vào mảng tên các thẻ cần format theo dạng tiền tệ
+   * dateFormat nhận vào mảng tên các thẻ cần format theo dạng thời gian
+   * exportExcel phân xem khi submit có xuất file excel. Nếu có xuất thì ghi đè với cú pháp sau:
+   * exportExcel = {api: "API xuất file", name: "Tên file xuất"}
+   * Lưu ý: Mặc định sẽ lấy phần data trả về làm param và gọi api để tải file. Phải khởi tạo layout và ghi đè layout trước khi ghi đè dữ liệu
+   * responseHandler là một object. Được sử dụng sau khi ấn submit và sẽ chạy hàm bên trong object đó
+   * Cú pháp: this.responseHandler = {code: "mã trả về. Điều kiện để chạy function", function: () => {}}
+   * 
+   * dataTotal nơi lưu trữ dữ liệu sau khi submit từ form
+   * tbody id của thẻ tbody nơi đổ ra dữ liệu
+   * btnSendData button bạn sẽ gửi dữ liệu
+   * method được gửi đi
+   * [formInTable=false] xác định xem bảng đó có chứa các ô input không.
+   * [resetTable=true] xác định xem có rest bảng không 
+   * [resetForm=true] xác định xem có rest form không
+   * [statusModal=true] xác định xem có rest modal không
+   */
+constructor(formSelector, validations, api, layout, template, modal, debug = false) {
+  super(formSelector, false, validations, api, "", layout, debug);
+  this.debug = debug;
+  this.formSelector = formSelector;
+
+  this.EventHelpers = new EventHelpers();
+  this.validate = new ValidateHelpers(this.form, validations);
+  this.modal = new ModalHelpers(this, modal, '');
+
+  this.template = template;
+
+  this.dataTotal = [];
+
+  this.tbody = "#table-body";
+  this.domTbody = document.querySelector(this.tbody);
+  if (!check(this.domTbody, this.tbody)) return;
+
+  this.btnSendData = "#btn-send-data";
+  this.method = "post";
+
+  this.formInTable = false;
+  this.resetTable = true;
+  this.resetForm = true;
+  this.statusModal = true;
+  this.index = 0;
+
+  this.initEventListeners();
+}
+
+// Tách việc đăng ký các sự kiện ra thành một hàm riêng
+initEventListeners() {
+  this.handleFormSubmit();
+  this.handleSendData();
+}
+
+// Hàm xử lý việc submit form và thêm dữ liệu vào bảng
+handleFormSubmit() {
+  this.EventHelpers.submit(this.formSelector, (e) => {
+    let data = this.validate.validateForm(true);
+    if (data !== false) {
+      this.resetFormInputs();
+      this.renderRowInTable(data);
+      this.dataTotal.push(data);
+    }
+  });
+}
+
+// Hàm render một hàng trong bảng
+renderRowInTable(data) {
+  const header = `<tr index="${this.index}">`;
+  const main = this.template(data);
+  const footer = `
+    <td class="align-middle white-space-nowrap text-center" scope="col" data-sort="role" style="max-width:160px">
+        <button type="button" onclick="this.deleteDataFromTable(${this.index})" class="btn btn-sm btn-phoenix-secondary text-danger fs-8">
+            <span class=" uil-trash-alt"></span>
+        </button>  
+    </td>
+  </tr>`;
+
+  const html = header + main + footer;
+  this.domTbody.insertAdjacentHTML('beforeend', html);
+  this.index += 1;
+}
+
+// Hàm xóa một hàng khỏi bảng dựa trên chỉ số (index)
+deleteDataFromTable(indexToRemove) {
+  if (indexToRemove >= 0 && indexToRemove < this.dataTotal.length) {
+    this.dataTotal.splice(indexToRemove, 1);
+    const rows = Array.from(this.domTbody.getElementsByTagName('tr'));
+
+    rows.forEach(row => {
+      const index = row.getAttribute('index');
+      if (index === indexToRemove.toString()) {
+        row.remove();
+        showMessageMD("Xóa thành công");
+      }
+    });
+  } else {
+    showErrorMD("Không tìm thấy dữ liệu bạn cần xóa");
+  }
+}
+
+// Hàm gửi dữ liệu khi nhấn nút submit
+handleSendData() {
+  const btnSendData = document.querySelector(this.btnSendData);
+  if (!check(btnSendData, this.btnSendData)) return;
+
+  // thực hiện hiệu ứng loadding khi ấn gửi
+  const btnSendDataTextContent = btnSendData.textContent;
+  btnLoading(btnSendData, true)
+
+  this.EventHelpers.click(this.btnSendData, async () => {
+    this.dataTotal = this.formInTable ? this.validate.validateRow(this.formInTable) : this.dataTotal;
+
+    if (this.dataTotal !== false && this.dataTotal.length > 0) {
+      if (Object.keys(this.subdata).length > 0) {
+        this.dataTotal = { ...this.dataTotal, ...this.subdata };
+      }
+
+      // Format dữ liệu trước khi gửi đi
+      this.formatDataBeforeSend();
+
+      // Thực hiện gửi dữ liệu
+      let response = await this.sendRequest(this.dataTotal, this.debug, this.method);
+      // nếu có yêu cầu sau gì đó sau khi gọi api, kiểm tra status có trùng với yêu cầu không, thực hiện gọi hàm đó
+      if (this.responseHandler) if (response !== false && this.responseHandler.status === response.data.status) this.responseHandler.function();
+      // xác định việc gửi dữ liệu thành công
+      if (response !== false && response.status >= 200 && response.status < 400) {
+        if (this.resetForm) this.resetFormInputs();
+        if (this.resetTable) this.clearTable();
+        if (this.statusModal) this.modal.hideModal();
+        this.dataTotal = [];
+        this.index = 0;
+        this.exportDataIfNecessary(response.data);
+      }
+    }
+  });
+  btnLoading(btnSendData, false, btnSendDataTextContent);
+}
+
+// Hàm định dạng lại dữ liệu trước khi gửi đi (giá và ngày)
+formatDataBeforeSend() {
+  this.priceFormat.forEach(name => {
+    if (this.dataTotal.hasOwnProperty(name)) {
+      this.dataTotal[name] = removeCommasHelpers(this.dataTotal[name]);
+    }
+  });
+
+  this.dateFormat.forEach(name => {
+    if (this.dataTotal.hasOwnProperty(name)) {
+      this.dataTotal[name] = convertDateFormatHelpers(this.dataTotal[name]);
+    }
+  });
+}
+
+// Hàm để xuất dữ liệu ra Excel (nếu cần)
+exportDataIfNecessary(responseData) {
+  if (this.exportExcel && responseData) {
+    const api = `${this.exportExcel.api}${responseData}`;
+    this.layout.exportExcel("", api, this.exportExcel.name);
+  }
+}
+
+// Hàm reset lại form inputs
+resetFormInputs() {
+  this.reset();
+}
+
+// Hàm xóa toàn bộ dữ liệu trong bảng
+clearTable() {
+  this.domTbody.innerHTML = "";
+}
+}
+
 // class thao tác với param trên url
 class URLHelpers {
   constructor(url = window.location.href) {
@@ -1807,4 +2176,4 @@ class LayoutHelpers extends URLHelpers {
   }
 }
 
-export { RequestServerHelpers, codeAutoGenerationHelpers, generateCode, FormHelpers, URLHelpers, ConfirmHelpers, LayoutHelpers }
+export { RequestServerHelpers, codeAutoGenerationHelpers, generateCode, FormHelpers, URLHelpers, ConfirmHelpers, LayoutHelpers, EventHelpers, FormTableHelpers }
