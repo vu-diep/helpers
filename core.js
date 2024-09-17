@@ -1,4 +1,4 @@
-import { formatApiUrl, convertDateFormatHelpers, formatAPI, check } from "./coreFunctions.js";
+import { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse } from "./coreFunctions.js";
 // xác định message trả về
 const messageError = "errorMessage";
 const messageSussces = "successMessage";
@@ -117,6 +117,14 @@ class EventHelpers {
   // lắng nghe sự kiện change
   change(dom, callback) {
     this.addEvent(dom, "change", callback);
+  }
+  // lắng nghe sự kiện addItem
+  addItem(dom, callback) {
+    this.addEvent(dom, "addItem", callback);
+  }
+  // lắng nghe sự kiện search
+  search(dom, callback) {
+    this.addEvent(dom, "search", callback);
   }
 }
 
@@ -312,7 +320,7 @@ class ModalHelpers extends RequestServerHelpers {
 
   /** Reset form và các phần tử modal */
   reset() {
-    if (this.form){
+    if (this.form) {
       this.form.reset();
     }
     if (this.loading) this.loading.style.display = "none";
@@ -491,37 +499,337 @@ class ValidateHelpers {
   }
 }
 
-/**Hàm có tác dụng tạo ra mã theo kiểu tịnh tiến 
- * @param {string} baseCode là mã của từng loại phiếu
-*/
-async function codeAutoGenerationHelpers(baseCode = "PN-SX") {
-  const request = new RequestServerHelpers("/api/so-phieu/id-moi-nhat");
-  const response = await request.getData();
-  if (response !== false) {
-    let { id, date } = response.data;
-    id += 1;
-    let idStr = id.toString();
-    let baseLength = 4; // Độ dài cơ sở của mã, ví dụ là 4
-    // Nếu độ dài của idStr lớn hơn baseLength, không thay đổi gì
-    if (idStr.length < baseLength) {
-      idStr = idStr.padStart(baseLength, '0');
-    }
-    return `${baseCode}-${date}-${idStr}`;
-  }
-}
+/**Class có tác dụng làm việc với thẻ select */
+class SelectHelpers {
 
-/**Hàm có tác dụng nhận đưa ra số phiếu vào 1 thẻ nào đó sử dụng id
- * @param codeDefault nhận vào  mã bắt đầu
- * @param dom nhận vào dom cần trả về sử dụng id
- */
-async function generateCode(codeDefault, dom) {
-  dom = document.getElementById(dom);
-  if (!check(dom)) return;
-  try {
-    const result = await codeAutoGenerationHelpers(codeDefault);
-    dom.value = result;
-  } catch (error) {
-    console.error("Có lỗi xảy ra:", error);
+  constructor(form) {
+    this.form = form;
+    this.params = {};
+    this.value = "id";
+    this.customProperties = [];
+
+    this.event = new EventHelpers(this.form);
+    this.request = new RequestServerHelpers();
+  }
+
+    // Hàm xử lý chung cho dữ liệu trả về và thiết lập cho Choices
+    processApiData(res, label, labelDefault) {
+      if (res.status !== 200) {
+        showErrorMD("Không có dữ liệu bạn cần tìm");
+        return [{ value: "", label: labelDefault }];
+      }
+      let data = formatDataResponse(res);
+      return data.map(item => {
+        const labelValue = Array.isArray(label) 
+          ? label.map(lbl => item[lbl]).join("-")
+          : item[label];
+        const customProps = this.getCustomProperties(item);
+        return {
+          label: labelValue,
+          value: item[this.value],
+          customProperties: customProps,
+        };
+      });
+    }
+  
+    // Lấy customProperties từ item
+    getCustomProperties(item) {
+      let customProps = {};
+      if (Array.isArray(this.customProperties) && this.customProperties.length > 0) {
+        this.customProperties.forEach(prop => {
+          if (item.hasOwnProperty(prop)) {
+            customProps[prop] = item[prop];
+          }
+        });
+      }
+      return customProps;
+    }
+
+  /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ select khác
+   * @param {string} selectChange ID, Class của thẻ được chọn
+   * @param {string} selectEeceive ID, Class của thẻ được nhận
+   * @param {string} api api nhận lấy ra dữ liệu
+   * @param {string} key là phần tham số mặc định cần gửi đi sau khi lắng nghe được sự kiện change,
+   * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option. Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng
+   * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
+   * @param {Object} params là 1 object chứa các tùy chọn kèm theo khi gửi request
+   * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties. Các trường phụ này sẽ lưu vào thẻ selectEeceive
+   * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
+   */
+  eventListenerChange(selectChange, selectReceive, api, key, label, labelDefault) {
+    let choiceSelectReceive = this.form.choice[selectReceive];
+    if (!check(choiceSelectReceive, selectReceive, "choice")) return;
+
+    this.event.change(selectChange, async (e) => {
+      let value = e.target.value;
+      choiceSelectReceive.clearStore();
+      choiceSelectReceive._handleLoadingState(true);
+      this.params = { [key]: value, ...this.params };
+
+      let res = await this.request.getData(api);
+      let dataChoice = this.processApiData(res, label, labelDefault);
+      dataChoice.unshift({ value: "", label: labelDefault });
+
+      choiceSelectReceive.setChoices(dataChoice, "value", "label", true);
+      choiceSelectReceive._handleLoadingState(false);
+    });
+  }
+
+
+
+  /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ khác
+     * @param {string} selectChange ID, Class của thẻ được chọn
+     * @param {string} receive ID, Class của thẻ được nhận. Nếu bạn có nhiều nơi cần nhận dữ liệu đồng nghĩa với việc bạn đã lưu dữ liệu vào customProperties thì hãy truyền receive theo cách sau:
+     * const received = [
+            {dom: "#ratio", value: "ratio" },
+            {dom: "#price", value: "price" },
+        ];
+     * @param {string} value là phần muốn hiển thị sau khi gọi api hoặc lấy dữ liệu từ customProperties,
+     * @param {string} api api nhận lấy ra dữ liệu, trong trường hợp bạn đã lưu dữ liệu vào customProperties thì không cần truyền api và key
+     * @param {string} key nhận vào param của api,
+     */
+  eventListenerChangeForData(selectChange, receive, value, api = "", key = "") {
+
+    // Lấy phần tử DOM cho selectChange
+    const domSelectChange = this.form.querySelector(selectChange);
+    if (!check(domSelectChange, selectChange)) return;
+    // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
+    const isReceiveArray = Array.isArray(receive);
+    const domReceive = isReceiveArray ? null : this.form.querySelector(receive);
+    if (!isReceiveArray && !domReceive) {
+      console.error("Không tìm thấy id hoặc class này: " + receive);
+      return;
+    }
+    // Hàm xử lý cập nhật dữ liệu vào domReceive hoặc danh sách domReceive
+    const updateReceive = (data) => {
+      if (isReceiveArray) {
+        receive.forEach((item) => {
+          const dataCustomProperties = data[item.value];
+          // chỉ cho phép tìm các phần tử ở trong form
+          let dom = this.form.querySelector(item.dom);
+          this.updateDomReceive(dom, dataCustomProperties);
+        });
+      } else if (api) {
+        this.updateDomReceive(domReceive, data[value]);
+      } else {
+        this.updateDomReceive(domReceive, data);
+      }
+    };
+    // Thêm sự kiện change cho selectChange
+
+    this.event.addItem(selectChange, async (e) => {
+      let selectedChoice = e.detail;
+      if (!selectedChoice || !selectedChoice.customProperties) {
+        console.error("Lựa chọn không có customProperties.");
+        return;
+      }
+      if (api) {
+        // Hiển thị trạng thái "Đang tìm kiếm"
+        this.updateDomReceive(domReceive, "Đang tìm kiếm");
+        try {
+          // Gửi yêu cầu GET đến API
+          const res = await this.getData(`${api}?${key}=${e.target.value}`);
+          let dataToDisplay = "Không tìm thấy dữ liệu";
+          if (res.status === 200) {
+            const data = formatDataResponse(res);
+            if (data) {
+              dataToDisplay = data[value];
+            }
+          }
+          updateReceive(dataToDisplay);
+        } catch (error) {
+          console.error("Lỗi khi gọi API: ", error);
+          this.updateDomReceive(domReceive, "Lỗi khi tìm kiếm dữ liệu");
+        }
+      } else if (isReceiveArray) {
+        const dataCustomProperties = selectedChoice.customProperties;
+        updateReceive(dataCustomProperties);
+      } else {
+        updateReceive(e.target.value);
+      }
+    })
+  }
+
+  /**Hàm có tác dụng lắng nghe sự kiện change của 1 thẻ select và xóa dữ liệu của 1 thẻ khác 
+   * @param {string} selectChange ID, Class của thẻ được chọn
+   * @param {string} receive name của thẻ được nhận. Nếu bạn có nhiều nơi cần nhận dữ liệu đồng nghĩa với việc bạn đã lưu dữ liệu vào customProperties thì hãy truyền receive theo cách sau:
+   * const received = [ "ratio", "price",];
+   */
+  eventChangeClearField(selectChange, receive) {
+
+    // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
+    const isReceiveArray = Array.isArray(receive);
+
+    const domReceive = isReceiveArray ? null : this.form.querySelector(`[name="${receive}"]`);
+
+    if (!isReceiveArray && !domReceive) {
+      console.error("Không tìm thấy id hoặc class này: " + receive);
+      return;
+    }
+
+    // Hàm xử lý cập nhật dữ liệu vào domReceive hoặc danh sách domReceive
+    const clearReceive = () => {
+      if (isReceiveArray) {
+        receive.forEach((item) => {
+          // Chỉ cho phép tìm các phần tử ở trong form
+          let dom = this.form.querySelector(`[name="${item}"]`);
+          if (!dom) return; // Nếu không tìm thấy phần tử, bỏ qua
+          if (dom.getAttribute("data-choice")) {
+            let id = dom.getAttribute("id");
+            // Tìm đối tượng Choices
+            let choiceInstance = this.form.choice[`#${id}`];
+            if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
+          } else {
+            dom.value = "";
+          }
+        });
+      } else {
+        if (domReceive) {
+          if (domReceive.getAttribute("data-choice")) {
+            let id = domReceive.getAttribute("id");
+            // Tìm đối tượng Choices
+            let choiceInstance = this.form.choice[`#${id}`];
+            if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
+          } else {
+            domReceive.value = ""; // Xóa giá trị của input và textarea
+          }
+        }
+      }
+    };
+
+    // Thêm sự kiện change cho domSelectChange
+    this.event.change(selectChange, (e) => {
+      clearReceive(); // Gọi hàm clearReceive khi có sự kiện change
+    });
+  }
+
+
+  // Hàm cập nhật domReceive tùy theo loại thẻ hàm dùng nội bộ
+  updateDomReceive(domReceive, content) {
+    if (domReceive.tagName === "INPUT" || domReceive.tagName === "TEXTAREA") {
+      domReceive.value = "";
+      domReceive.value = checkOutput(content);
+    } else {
+      domReceive.innerHTML = "";
+      domReceive.innerHTML = checkOutput(content);
+    }
+  }
+
+  /**Lắng nghe sự kiện tìm thêm dữ liệu
+   * @param {string} select ID, Class của thẻ được chọn
+   * @param {string} api api nhận lấy ra dữ liệu
+   * @param {string} key nhận vào param của api,
+   * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option
+   * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
+   * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
+   * @param {string} params là 1 object chứa các tùy chọn kèm theo khi gửi request
+   * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
+   */
+  async selectMore(select, api, key, label, labelDefault, params = {}) {
+    let myTimeOut = null;
+    let selectDom = document.querySelector(select);
+    let choiceSelect = this.form.choice[select];
+    if (!check(selectDom, select)) return;
+    if (!check(choiceSelect, select, "choice")) return;
+    // Lắng nghe sự kiện tìm kiếm
+    this.event.search(select, async (e) => {
+      let query = e.detail.value.trim();
+      clearTimeout(myTimeOut);
+      myTimeOut = setTimeout(async () => {
+        choiceSelect.setChoiceByValue("");
+        choiceSelect._handleLoadingState();
+        try {
+          this.params = { [key]: query, ...params };
+          let res = await this.request.getData(api);
+          if (res.status !== 200) {
+            showErrorMD("Không tìm thấy dữ liệu bạn cần");
+            choiceSelect._handleLoadingState(false); // Tắt trạng thái loading
+            return;
+          }
+          let data = res.data?.data?.length > 0 ? res.data.data : res.data;
+          let choiceData = data.map((item) => {
+            let labelValue;
+            if (Array.isArray(label)) {
+              // Nếu label là mảng, kết hợp các giá trị từ các trường được chỉ định
+              labelValue = label.map((lbl) => item[lbl]).join("-");
+            } else {
+              // Nếu label là một chuỗi, lấy giá trị của trường đó
+              labelValue = item[label];
+            }
+            let customProps = {};
+            if (Array.isArray(this.customProperties) && this.customProperties.length > 0) {
+              this.customProperties.forEach((prop) => {
+                if (item.hasOwnProperty(prop)) customProps[prop] = item[prop];
+              });
+            }
+            return {
+              label: labelValue,
+              value: item[this.value],
+              customProperties: customProps,
+            };
+          });
+          // Thêm giá trị mặc định
+          choiceData.unshift({ value: "", label: labelDefault });
+          choiceSelect.setChoices(choiceData, "value", "label", true); // Đổ dữ liệu mới vào select
+          choiceSelect._handleLoadingState(false); // Tắt trạng thái loading
+          choiceSelect.input.element.focus(); // Trả lại focus cho ô input của Choices
+        } catch (error) {
+          console.error("There was an error!", error);
+          choiceSelect._handleLoadingState(false); // Tắt trạng thái loading ngay cả khi có lỗi
+        }
+      }, 500);
+    })
+  }
+
+  /**Đổ dữ liệu vào thẻ select choices thông qua api
+   * @param {string} select ID của thẻ được chọn
+   * @param {string} api api nhận lấy ra dữ liệu
+   * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option
+   * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
+   * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
+   * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
+   */
+  async selectData(select, api, label, labelDefault) {
+    // Tìm đối tượng Choices cho selectChange và select
+    let choiceSelect = this.form.choice[select];
+    // Kiểm tra nếu đối tượng Choices tồn tại
+    if (choiceSelect) {
+      choiceSelect._handleLoadingState(true);
+      let res = await this.request.getData(api);
+      if (res.status === 200) {
+        let data = res.data.data?.length > 0 ? res.data.data : res.data;
+        let dataChoice = data.map((item) => {
+          let labelValue;
+          if (Array.isArray(label)) {
+            // Nếu label là mảng, kết hợp các giá trị từ các trường được chỉ định
+            labelValue = label.map((lbl) => item[lbl]).join("-");
+          } else {
+            // Nếu label là một chuỗi, lấy giá trị của trường đó
+            labelValue = item[label];
+          }
+          let customProps = {};
+          if (Array.isArray(this.customProperties) && this.customProperties.length > 0) {
+            this.customProperties.forEach((prop) => {
+              if (item.hasOwnProperty(prop)) {
+                customProps[prop] = item[prop];
+              }
+            });
+          }
+          return {
+            label: labelValue,
+            value: item[this.value],
+            customProperties: customProps,
+          };
+        });
+        // thêm giá trị mặc định
+        dataChoice.unshift({ value: "", label: labelDefault });
+        // trả dữ liệu về thẻ select
+        choiceSelect.setChoices(dataChoice, "value", "label", true);
+      }
+      choiceSelect._handleLoadingState(false);
+    } else {
+      console.error("Không có đối tượng choices này: " + select);
+    }
   }
 }
 
@@ -598,6 +906,8 @@ class FormHelpers extends RequestServerHelpers {
     this.validate = new ValidateHelpers(this.form, this.validations);
     // khởi tạo class modal
     this.modal = new ModalHelpers(this, modal, this.api);
+    // khởi tạo class SelectHelpers
+    this.select = new SelectHelpers(this.form);
 
   }
   /**
@@ -615,351 +925,6 @@ class FormHelpers extends RequestServerHelpers {
         // Lưu trữ thông tin về phần tử và đối tượng Choices
         this.choice[`#${item.id}`] = choiceInstance;
       });
-  }
-
-
-
-  /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ select khác
-   * @param {string} selectChange ID, Class của thẻ được chọn
-   * @param {string} selectEeceive ID, Class của thẻ được nhận
-   * @param {string} api api nhận lấy ra dữ liệu
-   * @param {string} key là phần tham số mặc định cần gửi đi sau khi lắng nghe được sự kiện change,
-   * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option. Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng
-   * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
-   * @param {Object} params là 1 object chứa các tùy chọn kèm theo khi gửi request
-   * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties. Các trường phụ này sẽ lưu vào thẻ selectEeceive
-   * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
-   */
-  eventListenerChange(selectChange, selectEeceive, api, key, label, labelDefault, customProperties = []) {
-
-    // Tìm đối tượng Choices cho selectChange và selectEeceive
-    let choiceSelectEeceive = this.choice[selectEeceive];
-    // Kiểm tra nếu đối tượng Choices tồn tại
-    if (!check(choiceSelectEeceive, selectEeceive, "choice")) return;
-    // Thêm sự kiện change cho selectChange
-    this.eventListenerChangeGetData(selectChange, async (e) => {
-      // xóa bỏ giá trị đã được chọn cũ
-      choiceSelectEeceive.clearStore();
-      // Hiển thị trạng thái loading
-      choiceSelectEeceive._handleLoadingState(true);
-      // Gửi yêu cầu GET đến API
-      this.params = { [key]: e, ...this.param };
-      let res = await this.getData(api);
-      if (res.status !== 200) {
-        showErrorMD("Không có dữ liệu bạn cần tìm");
-        choiceSelectEeceive._handleLoadingState(false);
-        choiceSelectEeceive.setChoices(
-          [{ value: "", label: labelDefault }],
-          "value",
-          "label",
-          true
-        );
-        return;
-      }
-      let data = res.data?.data?.length > 0 ? res.data.data : res.data;
-      let dataChoice = data.map((item) => {
-        let labelValue;
-        if (Array.isArray(label)) {
-          // Nếu label là mảng, kết hợp các giá trị từ các trường được chỉ định
-          labelValue = label.map((lbl) => item[lbl]).join("-");
-        } else {
-          // Nếu label là một chuỗi, lấy giá trị của trường đó
-          labelValue = item[label];
-        }
-        let customProps = {};
-        if (Array.isArray(customProperties) && customProperties.length > 0) {
-          customProperties.forEach((prop) => {
-            if (item.hasOwnProperty(prop)) {
-              customProps[prop] = item[prop];
-            }
-          });
-        }
-        return {
-          label: labelValue,
-          value: item[this.value],
-          customProperties: customProps,
-        };
-      });
-      // thêm giá trị mặc định
-      dataChoice.unshift({ value: "", label: labelDefault });
-      // trả dữ liệu về thẻ sleect
-      choiceSelectEeceive.setChoices(dataChoice, "value", "label", true);
-      choiceSelectEeceive._handleLoadingState(false);
-    });
-  }
-
-
-
-  /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ khác
-     * @param {string} selectChange ID, Class của thẻ được chọn
-     * @param {string} receive ID, Class của thẻ được nhận. Nếu bạn có nhiều nơi cần nhận dữ liệu đồng nghĩa với việc bạn đã lưu dữ liệu vào customProperties thì hãy truyền receive theo cách sau:
-     * const received = [
-            {dom: "#ratio", value: "ratio" },
-            {dom: "#price", value: "price" },
-        ];
-     * @param {string} value là phần muốn hiển thị sau khi gọi api hoặc lấy dữ liệu từ customProperties,
-     * @param {string} api api nhận lấy ra dữ liệu, trong trường hợp bạn đã lưu dữ liệu vào customProperties thì không cần truyền api và key
-     * @param {string} key nhận vào param của api,
-     */
-  eventListenerChangeForData(selectChange, receive, value, api = "", key = "") {
-
-    // Lấy phần tử DOM cho selectChange
-    const domSelectChange = this.form.querySelector(selectChange);
-    if (!check(domSelectChange, selectChange)) return;
-    // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
-    const isReceiveArray = Array.isArray(receive);
-    const domReceive = isReceiveArray ? null : this.form.querySelector(receive);
-    if (!isReceiveArray && !domReceive) {
-      console.error("Không tìm thấy id hoặc class này: " + receive);
-      return;
-    }
-    // Hàm xử lý cập nhật dữ liệu vào domReceive hoặc danh sách domReceive
-    const updateReceive = (data) => {
-      if (isReceiveArray) {
-        receive.forEach((item) => {
-          const dataCustomProperties = data[item.value];
-          // chỉ cho phép tìm các phần tử ở trong form
-          let dom = this.form.querySelector(item.dom);
-          this.updateDomReceive(dom, dataCustomProperties);
-        });
-      } else if (api) {
-        this.updateDomReceive(domReceive, data[value]);
-      } else {
-        this.updateDomReceive(domReceive, data);
-      }
-    };
-    // Thêm sự kiện change cho selectChange
-
-    domSelectChange.addEventListener("addItem", async (e) => {
-      let selectedChoice = e.detail;
-      if (!selectedChoice || !selectedChoice.customProperties) {
-        console.error("Lựa chọn không có customProperties.");
-        return;
-      }
-      if (api) {
-        // Hiển thị trạng thái "Đang tìm kiếm"
-        this.updateDomReceive(domReceive, "Đang tìm kiếm");
-        try {
-          // Gửi yêu cầu GET đến API
-          const res = await this.getData(`${api}?${key}=${e.target.value}`);
-          let dataToDisplay = "Không tìm thấy dữ liệu";
-          if (res.status === 200) {
-            const data = res.data?.data?.length > 0 ? res.data.data : res.data;
-            if (data) {
-              dataToDisplay = data[value];
-            }
-          }
-          updateReceive(dataToDisplay);
-        } catch (error) {
-          console.error("Lỗi khi gọi API: ", error);
-          this.updateDomReceive(domReceive, "Lỗi khi tìm kiếm dữ liệu");
-        }
-      } else if (isReceiveArray) {
-        const dataCustomProperties = selectedChoice.customProperties;
-        updateReceive(dataCustomProperties);
-      } else {
-        updateReceive(e.target.value);
-      }
-    });
-  }
-
-  /**Hàm có tác dụng lắng nghe sự kiện change của 1 thẻ select và trả về dữ liệu của thẻ đó
-   * @param {string} selectChange ID, Class của thẻ được chọn
-   * @param {callback} callback là một dùng để lấy ra dữ liệu
-   */
-  eventListenerChangeGetData(selectChange, callback) {
-    const domSelectChange = this.form.querySelector(selectChange);
-    if (!check(domSelectChange, selectChange)) return;
-    // Xóa bỏ event listener cũ (nếu có)
-    const newCallback = async (e) => {
-      const value = e.target.value;
-      if (callback) callback(value); // Gọi callback với giá trị
-    };
-    domSelectChange.removeEventListener("change", domSelectChange._callback);
-    domSelectChange._callback = newCallback;
-    domSelectChange.addEventListener("change", newCallback);
-  }
-
-  /**Hàm có tác dụng lắng nghe sự kiện change của 1 thẻ select và xóa dữ liệu của 1 thẻ khác 
-   * @param {string} selectChange ID, Class của thẻ được chọn
-   * @param {string} receive name của thẻ được nhận. Nếu bạn có nhiều nơi cần nhận dữ liệu đồng nghĩa với việc bạn đã lưu dữ liệu vào customProperties thì hãy truyền receive theo cách sau:
-   * const received = [ "ratio", "price",];
-   */
-  eventChangeClearField(selectChange, receive) {
-
-    // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
-    const isReceiveArray = Array.isArray(receive);
-    
-    const domReceive = isReceiveArray ? null : this.form.querySelector(`[name="${receive}"]`);
-
-    if (!isReceiveArray && !domReceive) {
-      console.error("Không tìm thấy id hoặc class này: " + receive);
-      return;
-    }
-
-    // Hàm xử lý cập nhật dữ liệu vào domReceive hoặc danh sách domReceive
-    const clearReceive = () => {
-      if (isReceiveArray) {
-        receive.forEach((item) => {
-          // Chỉ cho phép tìm các phần tử ở trong form
-          let dom = this.form.querySelector(`[name="${item}"]`);
-          if (!dom) return; // Nếu không tìm thấy phần tử, bỏ qua
-          if (dom.getAttribute("data-choice")) {
-            let id = dom.getAttribute("id");
-            // Tìm đối tượng Choices
-            let choiceInstance = this.choice[`#${id}`];
-            if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
-          } else {
-            dom.value = "";
-          }
-        });
-      } else {
-        if (domReceive) {
-          if (domReceive.getAttribute("data-choice")) {
-            let id = domReceive.getAttribute("id");
-            // Tìm đối tượng Choices
-            let choiceInstance = this.choice[`#${id}`];
-            if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
-          } else {
-            domReceive.value = ""; // Xóa giá trị của input và textarea
-          }
-        }
-      }
-    };
-
-    // Thêm sự kiện change cho domSelectChange
-    this.eventHelpers.change(selectChange, (e) => {
-      clearReceive(); // Gọi hàm clearReceive khi có sự kiện change
-    });
-  }
-
-
-  // Hàm cập nhật domReceive tùy theo loại thẻ hàm dùng nội bộ
-  updateDomReceive(domReceive, content) {
-    if (domReceive.tagName === "INPUT" || domReceive.tagName === "TEXTAREA") {
-      domReceive.value = "";
-      domReceive.value = checkOutput(content);
-    } else {
-      domReceive.innerHTML = "";
-      domReceive.innerHTML = checkOutput(content);
-    }
-  }
-
-  /**Lắng nghe sự kiện tìm thêm dữ liệu
-   * @param {string} select ID, Class của thẻ được chọn
-   * @param {string} api api nhận lấy ra dữ liệu
-   * @param {string} key nhận vào param của api,
-   * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option
-   * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
-   * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
-   * @param {string} params là 1 object chứa các tùy chọn kèm theo khi gửi request
-   * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
-   */
-  async selectMore(select, api, key, label, labelDefault, customProperties = [], params = {}) {
-    let myTimeOut = null;
-    let selectDom = document.querySelector(select);
-    let choiceSelect = this.choice[select];
-    if (!check(selectDom, select)) return;
-    if (!check(choiceSelect, select, "choice")) return;
-    // Lắng nghe sự kiện tìm kiếm
-    selectDom.addEventListener("search", async (e) => {
-      let query = e.detail.value.trim();
-      clearTimeout(myTimeOut);
-      myTimeOut = setTimeout(async () => {
-        choiceSelect.setChoiceByValue("");
-        choiceSelect._handleLoadingState();
-        try {
-          this.params = { [key]: query, ...params };
-          let res = await this.getData(api);
-          if (res.status !== 200) {
-            showErrorMD("Không tìm thấy dữ liệu bạn cần");
-            choiceSelect._handleLoadingState(false); // Tắt trạng thái loading
-            return;
-          }
-          let data = res.data?.data?.length > 0 ? res.data.data : res.data;
-          let choiceData = data.map((item) => {
-            let labelValue;
-            if (Array.isArray(label)) {
-              // Nếu label là mảng, kết hợp các giá trị từ các trường được chỉ định
-              labelValue = label.map((lbl) => item[lbl]).join("-");
-            } else {
-              // Nếu label là một chuỗi, lấy giá trị của trường đó
-              labelValue = item[label];
-            }
-            let customProps = {};
-            if (Array.isArray(customProperties) && customProperties.length > 0) {
-              customProperties.forEach((prop) => {
-                if (item.hasOwnProperty(prop)) customProps[prop] = item[prop];
-              });
-            }
-            return {
-              label: labelValue,
-              value: item[this.value],
-              customProperties: customProps,
-            };
-          });
-          // Thêm giá trị mặc định
-          choiceData.unshift({ value: "", label: labelDefault });
-          choiceSelect.setChoices(choiceData, "value", "label", true); // Đổ dữ liệu mới vào select
-          choiceSelect._handleLoadingState(false); // Tắt trạng thái loading
-          choiceSelect.input.element.focus(); // Trả lại focus cho ô input của Choices
-        } catch (error) {
-          console.error("There was an error!", error);
-          choiceSelect._handleLoadingState(false); // Tắt trạng thái loading ngay cả khi có lỗi
-        }
-      }, 500);
-    });
-  }
-
-  /**Đổ dữ liệu vào thẻ select choices thông qua api
-   * @param {string} select ID của thẻ được chọn
-   * @param {string} api api nhận lấy ra dữ liệu
-   * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option
-   * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
-   * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
-   * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
-   */
-  async selectData(select, api, label, labelDefault, customProperties = []) {
-    // Tìm đối tượng Choices cho selectChange và select
-    let choiceSelect = this.choice[select];
-    // Kiểm tra nếu đối tượng Choices tồn tại
-    if (choiceSelect) {
-      choiceSelect._handleLoadingState(true);
-      let res = await this.getData(api);
-      if (res.status === 200) {
-        let data = res.data.data?.length > 0 ? res.data.data : res.data;
-        let dataChoice = data.map((item) => {
-          let labelValue;
-          if (Array.isArray(label)) {
-            // Nếu label là mảng, kết hợp các giá trị từ các trường được chỉ định
-            labelValue = label.map((lbl) => item[lbl]).join("-");
-          } else {
-            // Nếu label là một chuỗi, lấy giá trị của trường đó
-            labelValue = item[label];
-          }
-          let customProps = {};
-          if (Array.isArray(customProperties) && customProperties.length > 0) {
-            customProperties.forEach((prop) => {
-              if (item.hasOwnProperty(prop)) {
-                customProps[prop] = item[prop];
-              }
-            });
-          }
-          return {
-            label: labelValue,
-            value: item[this.value],
-            customProperties: customProps,
-          };
-        });
-        // thêm giá trị mặc định
-        dataChoice.unshift({ value: "", label: labelDefault });
-        // trả dữ liệu về thẻ select
-        choiceSelect.setChoices(dataChoice, "value", "label", true);
-      }
-      choiceSelect._handleLoadingState(false);
-    } else {
-      console.error("Không có đối tượng choices này: " + select);
-    }
   }
 
   reset() {
@@ -1278,58 +1243,58 @@ class FormTableHelpers extends FormHelpers {
    * [resetForm=true] xác định xem có rest form không
    * [statusModal=true] xác định xem có rest modal không
    */
-constructor(formSelector, validations, api, layout, template, modal, debug = false) {
-  super(formSelector, false, validations, api, "", layout, debug);
-  this.debug = debug;
-  this.formSelector = formSelector;
+  constructor(formSelector, validations, api, layout, template, modal, debug = false) {
+    super(formSelector, false, validations, api, "", layout, debug);
+    this.debug = debug;
+    this.formSelector = formSelector;
 
-  this.EventHelpers = new EventHelpers();
-  this.validate = new ValidateHelpers(this.form, validations);
-  this.modal = new ModalHelpers(this, modal, '');
+    this.EventHelpers = new EventHelpers();
+    this.validate = new ValidateHelpers(this.form, validations);
+    this.modal = new ModalHelpers(this, modal, '');
 
-  this.template = template;
+    this.template = template;
 
-  this.dataTotal = [];
+    this.dataTotal = [];
 
-  this.tbody = "#table-body";
-  this.domTbody = document.querySelector(this.tbody);
-  if (!check(this.domTbody, this.tbody)) return;
+    this.tbody = "#table-body";
+    this.domTbody = document.querySelector(this.tbody);
+    if (!check(this.domTbody, this.tbody)) return;
 
-  this.btnSendData = "#btn-send-data";
-  this.method = "post";
+    this.btnSendData = "#btn-send-data";
+    this.method = "post";
 
-  this.formInTable = false;
-  this.resetTable = true;
-  this.resetForm = true;
-  this.statusModal = true;
-  this.index = 0;
+    this.formInTable = false;
+    this.resetTable = true;
+    this.resetForm = true;
+    this.statusModal = true;
+    this.index = 0;
 
-  this.initEventListeners();
-}
+    this.initEventListeners();
+  }
 
-// Tách việc đăng ký các sự kiện ra thành một hàm riêng
-initEventListeners() {
-  this.handleFormSubmit();
-  this.handleSendData();
-}
+  // Tách việc đăng ký các sự kiện ra thành một hàm riêng
+  initEventListeners() {
+    this.handleFormSubmit();
+    this.handleSendData();
+  }
 
-// Hàm xử lý việc submit form và thêm dữ liệu vào bảng
-handleFormSubmit() {
-  this.EventHelpers.submit(this.formSelector, (e) => {
-    let data = this.validate.validateForm(true);
-    if (data !== false) {
-      this.resetFormInputs();
-      this.renderRowInTable(data);
-      this.dataTotal.push(data);
-    }
-  });
-}
+  // Hàm xử lý việc submit form và thêm dữ liệu vào bảng
+  handleFormSubmit() {
+    this.EventHelpers.submit(this.formSelector, (e) => {
+      let data = this.validate.validateForm(true);
+      if (data !== false) {
+        this.resetFormInputs();
+        this.renderRowInTable(data);
+        this.dataTotal.push(data);
+      }
+    });
+  }
 
-// Hàm render một hàng trong bảng
-renderRowInTable(data) {
-  const header = `<tr index="${this.index}">`;
-  const main = this.template(data);
-  const footer = `
+  // Hàm render một hàng trong bảng
+  renderRowInTable(data) {
+    const header = `<tr index="${this.index}">`;
+    const main = this.template(data);
+    const footer = `
     <td class="align-middle white-space-nowrap text-center" scope="col" data-sort="role" style="max-width:160px">
         <button type="button" onclick="this.deleteDataFromTable(${this.index})" class="btn btn-sm btn-phoenix-secondary text-danger fs-8">
             <span class=" uil-trash-alt"></span>
@@ -1337,99 +1302,99 @@ renderRowInTable(data) {
     </td>
   </tr>`;
 
-  const html = header + main + footer;
-  this.domTbody.insertAdjacentHTML('beforeend', html);
-  this.index += 1;
-}
+    const html = header + main + footer;
+    this.domTbody.insertAdjacentHTML('beforeend', html);
+    this.index += 1;
+  }
 
-// Hàm xóa một hàng khỏi bảng dựa trên chỉ số (index)
-deleteDataFromTable(indexToRemove) {
-  if (indexToRemove >= 0 && indexToRemove < this.dataTotal.length) {
-    this.dataTotal.splice(indexToRemove, 1);
-    const rows = Array.from(this.domTbody.getElementsByTagName('tr'));
+  // Hàm xóa một hàng khỏi bảng dựa trên chỉ số (index)
+  deleteDataFromTable(indexToRemove) {
+    if (indexToRemove >= 0 && indexToRemove < this.dataTotal.length) {
+      this.dataTotal.splice(indexToRemove, 1);
+      const rows = Array.from(this.domTbody.getElementsByTagName('tr'));
 
-    rows.forEach(row => {
-      const index = row.getAttribute('index');
-      if (index === indexToRemove.toString()) {
-        row.remove();
-        showMessageMD("Xóa thành công");
+      rows.forEach(row => {
+        const index = row.getAttribute('index');
+        if (index === indexToRemove.toString()) {
+          row.remove();
+          showMessageMD("Xóa thành công");
+        }
+      });
+    } else {
+      showErrorMD("Không tìm thấy dữ liệu bạn cần xóa");
+    }
+  }
+
+  // Hàm gửi dữ liệu khi nhấn nút submit
+  handleSendData() {
+    const btnSendData = document.querySelector(this.btnSendData);
+    if (!check(btnSendData, this.btnSendData)) return;
+
+    // thực hiện hiệu ứng loadding khi ấn gửi
+    const btnSendDataTextContent = btnSendData.textContent;
+    btnLoading(btnSendData, true)
+
+    this.EventHelpers.click(this.btnSendData, async () => {
+      this.dataTotal = this.formInTable ? this.validate.validateRow(this.formInTable) : this.dataTotal;
+
+      if (this.dataTotal !== false && this.dataTotal.length > 0) {
+        if (Object.keys(this.subdata).length > 0) {
+          this.dataTotal = { ...this.dataTotal, ...this.subdata };
+        }
+
+        // Format dữ liệu trước khi gửi đi
+        this.formatDataBeforeSend();
+
+        // Thực hiện gửi dữ liệu
+        let response = await this.sendRequest(this.dataTotal, this.debug, this.method);
+        // nếu có yêu cầu sau gì đó sau khi gọi api, kiểm tra status có trùng với yêu cầu không, thực hiện gọi hàm đó
+        if (this.responseHandler) if (response !== false && this.responseHandler.status === response.data.status) this.responseHandler.function();
+        // xác định việc gửi dữ liệu thành công
+        if (response !== false && response.status >= 200 && response.status < 400) {
+          if (this.resetForm) this.resetFormInputs();
+          if (this.resetTable) this.clearTable();
+          if (this.statusModal) this.modal.hideModal();
+          this.dataTotal = [];
+          this.index = 0;
+          this.exportDataIfNecessary(response.data);
+        }
       }
     });
-  } else {
-    showErrorMD("Không tìm thấy dữ liệu bạn cần xóa");
+    btnLoading(btnSendData, false, btnSendDataTextContent);
   }
-}
 
-// Hàm gửi dữ liệu khi nhấn nút submit
-handleSendData() {
-  const btnSendData = document.querySelector(this.btnSendData);
-  if (!check(btnSendData, this.btnSendData)) return;
-
-  // thực hiện hiệu ứng loadding khi ấn gửi
-  const btnSendDataTextContent = btnSendData.textContent;
-  btnLoading(btnSendData, true)
-
-  this.EventHelpers.click(this.btnSendData, async () => {
-    this.dataTotal = this.formInTable ? this.validate.validateRow(this.formInTable) : this.dataTotal;
-
-    if (this.dataTotal !== false && this.dataTotal.length > 0) {
-      if (Object.keys(this.subdata).length > 0) {
-        this.dataTotal = { ...this.dataTotal, ...this.subdata };
+  // Hàm định dạng lại dữ liệu trước khi gửi đi (giá và ngày)
+  formatDataBeforeSend() {
+    this.priceFormat.forEach(name => {
+      if (this.dataTotal.hasOwnProperty(name)) {
+        this.dataTotal[name] = removeCommasHelpers(this.dataTotal[name]);
       }
+    });
 
-      // Format dữ liệu trước khi gửi đi
-      this.formatDataBeforeSend();
-
-      // Thực hiện gửi dữ liệu
-      let response = await this.sendRequest(this.dataTotal, this.debug, this.method);
-      // nếu có yêu cầu sau gì đó sau khi gọi api, kiểm tra status có trùng với yêu cầu không, thực hiện gọi hàm đó
-      if (this.responseHandler) if (response !== false && this.responseHandler.status === response.data.status) this.responseHandler.function();
-      // xác định việc gửi dữ liệu thành công
-      if (response !== false && response.status >= 200 && response.status < 400) {
-        if (this.resetForm) this.resetFormInputs();
-        if (this.resetTable) this.clearTable();
-        if (this.statusModal) this.modal.hideModal();
-        this.dataTotal = [];
-        this.index = 0;
-        this.exportDataIfNecessary(response.data);
+    this.dateFormat.forEach(name => {
+      if (this.dataTotal.hasOwnProperty(name)) {
+        this.dataTotal[name] = convertDateFormatHelpers(this.dataTotal[name]);
       }
-    }
-  });
-  btnLoading(btnSendData, false, btnSendDataTextContent);
-}
-
-// Hàm định dạng lại dữ liệu trước khi gửi đi (giá và ngày)
-formatDataBeforeSend() {
-  this.priceFormat.forEach(name => {
-    if (this.dataTotal.hasOwnProperty(name)) {
-      this.dataTotal[name] = removeCommasHelpers(this.dataTotal[name]);
-    }
-  });
-
-  this.dateFormat.forEach(name => {
-    if (this.dataTotal.hasOwnProperty(name)) {
-      this.dataTotal[name] = convertDateFormatHelpers(this.dataTotal[name]);
-    }
-  });
-}
-
-// Hàm để xuất dữ liệu ra Excel (nếu cần)
-exportDataIfNecessary(responseData) {
-  if (this.exportExcel && responseData) {
-    const api = `${this.exportExcel.api}${responseData}`;
-    this.layout.exportExcel("", api, this.exportExcel.name);
+    });
   }
-}
 
-// Hàm reset lại form inputs
-resetFormInputs() {
-  this.reset();
-}
+  // Hàm để xuất dữ liệu ra Excel (nếu cần)
+  exportDataIfNecessary(responseData) {
+    if (this.exportExcel && responseData) {
+      const api = `${this.exportExcel.api}${responseData}`;
+      this.layout.exportExcel("", api, this.exportExcel.name);
+    }
+  }
 
-// Hàm xóa toàn bộ dữ liệu trong bảng
-clearTable() {
-  this.domTbody.innerHTML = "";
-}
+  // Hàm reset lại form inputs
+  resetFormInputs() {
+    this.reset();
+  }
+
+  // Hàm xóa toàn bộ dữ liệu trong bảng
+  clearTable() {
+    this.domTbody.innerHTML = "";
+  }
 }
 
 // class thao tác với param trên url

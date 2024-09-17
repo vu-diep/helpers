@@ -1,5 +1,7 @@
 /**Tác giả: Vũ Hồng Điệp */
 
+import { codeAutoGenerationHelpers, RequestServerHelpers } from "./core";
+
 /**Hàm có tác dụng xóa bỏ định sạng dấu , ở tiền tệ
  * Từ 2,000,000 = 2000000
  * @param {string} numberString  là chuỗi tiền tệ cần chuyển đổi
@@ -102,4 +104,38 @@ async function generateCode(codeDefault, dom) {
  */
 function checkOutput(output, outputDefault = "") {
   return output !== undefined && output !== null ? output : outputDefault;
+}
+
+/**Hàm có tác dụng nhận đưa ra số phiếu vào 1 thẻ nào đó sử dụng id
+ * @param codeDefault nhận vào  mã bắt đầu
+ * @param dom nhận vào dom cần trả về sử dụng id
+ */
+async function generateCode(codeDefault, dom) {
+  dom = document.getElementById(dom);
+  if (!check(dom)) return;
+  try {
+    const result = await codeAutoGenerationHelpers(codeDefault);
+    dom.value = result;
+  } catch (error) {
+    console.error("Có lỗi xảy ra:", error);
+  }
+}
+
+/**Hàm có tác dụng tạo ra mã theo kiểu tịnh tiến 
+ * @param {string} baseCode là mã của từng loại phiếu
+*/
+async function codeAutoGenerationHelpers(baseCode = "PN-SX") {
+  const request = new RequestServerHelpers("/api/so-phieu/id-moi-nhat");
+  const response = await request.getData();
+  if (response !== false) {
+    let { id, date } = response.data;
+    id += 1;
+    let idStr = id.toString();
+    let baseLength = 4; // Độ dài cơ sở của mã, ví dụ là 4
+    // Nếu độ dài của idStr lớn hơn baseLength, không thay đổi gì
+    if (idStr.length < baseLength) {
+      idStr = idStr.padStart(baseLength, '0');
+    }
+    return `${baseCode}-${date}-${idStr}`;
+  }
 }

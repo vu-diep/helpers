@@ -59,6 +59,11 @@ function formatAPI(api) {
   return `${baseUrl}?${newParams}`;
 }
 
+/**Hàm có tác dụng format data khi gọi response trả về. */
+function formatDataResponse(res){
+  return res.data?.data?.length > 0 ? res.data.data : res.data;
+}
+
 function check(value, valueDefault, type = "dom") {
   let status = true;
   const message = {
@@ -72,4 +77,4 @@ function check(value, valueDefault, type = "dom") {
   return status;
 }
 
-export {formatApiUrl, convertDateFormatHelpers, formatAPI, check};
+export {formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse};
