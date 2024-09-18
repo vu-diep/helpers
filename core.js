@@ -1,7 +1,8 @@
-import { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse } from "./coreFunctions.js";
+import { removeCommasHelpers } from "./common.js";
+import { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers} from "./coreFunctions.js";
 // xác định message trả về
-const messageError = "errorMessage";
-const messageSussces = "successMessage";
+const messageError = "error";
+const messageSussces = "success";
 
 // class thao tác với server
 class RequestServerHelpers {
@@ -227,6 +228,8 @@ class ModalHelpers extends RequestServerHelpers {
   showModal() {
     if (this.newModal) {
       this.newModal.show();
+       // Ẩn form và đóng modal
+       this.form.form.style.display = "flex";
     } else {
       console.error("Modal instance is not initialized.");
     }
@@ -283,7 +286,7 @@ class ModalHelpers extends RequestServerHelpers {
 
   /** Đổ dữ liệu từ API vào form */
   fillFormWithData(data) {
-    const elements = this.form.elements;
+    const elements = this.form.form.elements;
     for (let item of elements) {
       const name = item.getAttribute("name");
       if (name && data.hasOwnProperty(name)) {
@@ -944,169 +947,8 @@ class FormHelpers extends RequestServerHelpers {
           item.value = ""; // Đặt lại giá trị của các phần tử input, select, textarea
       }
     }
-    clearAllClassValidate(this.form);
+    clearAllClassValidateHelpers(this.form);
   }
-
-  /**thực hiện khởi tạo modal
-   * @param {String} modal nhận vào 1 id, class modal
-   * @param {String} loading nhận vào 1 id class của 1 loadding
-   * @param {String} show nhận vào 1 id class của 1 button lắng nghe sự kiện mở modal. Nếu bạn để nó là rỗng thì nó sẽ tự động khởi tạo modal
-   * @param {array} dataDefault là một mảng chứa các object mục đích khi khởi tạo dữ liệu sẽ được gắn vào form
-   * Ví dụ:
-   * dataDefault = [
-   * { dom: "Id hoặc class đổ ra dữ liệu mặc định", value: "Dữ liệu mặc định"},
-   * ]
-   */
-
-  startModal(modal, show = "", dataDefault = []) {
-
-    const openModal = () => {
-      this.modal = document.querySelector(modal);
-      if (!check(this.modal, modal)) return;
-      this.newModal = new bootstrap.Modal(this.modal, {});
-      // Tạo phần tử loading và thêm vào modal
-      this.loading = document.createElement("div");
-      this.loading.className = "spinner-border text-info spinner-border-sm";
-      this.loading.role = "status";
-      this.loading.innerHTML =
-        '<span class="visually-hidden">Loading...</span>';
-      this.loading.style.position = "absolute";
-      this.loading.style.top = "15%";
-      this.loading.style.left = "50%";
-      this.modal.querySelector(".modal-body").appendChild(this.loading);
-      // Khởi tạo modal và hiển thị phần loading
-      this.newModal.show();
-      this.loading.style.display = "block"; // Hiển thị loading
-      // Ngừng loading sau khi modal đã được hiển thị
-      this.modal.addEventListener("shown.bs.modal", () => {
-        this.loading.style.display = "none"; // Ẩn loading khi modal đã hiển thị
-        this.form.style.display = "flex"; // Hiển thị form
-        if (dataDefault.length > 0) {
-          dataDefault.forEach(async (item) => {
-            const element = this.form.querySelector(item.dom);
-            if (element) {
-              // Kiểm tra xem phần tử có tồn tại không
-              let value;
-              if (typeof item.value === "function") {
-                // Kiểm tra nếu item.value là hàm và gọi nó với await
-                value = await item.value();
-              } else {
-                value = item.value;
-              }
-              if (
-                element.tagName === "INPUT" ||
-                element.tagName === "TEXTAREA" ||
-                element.tagName === "SELECT"
-              ) {
-                element.value = value; // Gán giá trị cho các phần tử input, textarea, select
-              } else {
-                element.textContent = value; // Gán giá trị cho các phần tử khác (như div, span)
-              }
-            } else {
-              console.error("Không có phần tử này: " + item + " trong dom");
-            }
-          });
-        }
-      });
-
-      // Đảm bảo closeModal được gọi sau khi modal được khởi tạo
-      this.modal.addEventListener("hidden.bs.modal", (e) => {
-        this.reset();
-        this.newModal.hide();
-      });
-
-    };
-
-    if (show) {
-      const element = document.querySelector(show);
-      if (element) {
-        // Kiểm tra nếu phần tử tồn tại
-        element.addEventListener("click", openModal);
-      }
-    } else {
-      openModal();
-    }
-  }
-
-
-
-  /**Hàm có tác dụng khởi tạo modal edit và đổ ra dữ liệu
-   * @param {String} modal nhận vào 1 id, class modal
-   * @param {Object} params nhận vào object param
-   */
-  async startModalEdit(modal, params = {}) {
-    try {
-      // Mở modal
-      this.modal = document.querySelector(modal);
-      if (!check(this.modal, modal)) return;
-      this.newModal = new bootstrap.Modal(this.modal, {});
-      // Tạo phần tử loading và thêm vào modal
-      this.loading = document.createElement("div");
-      this.loading.className = "spinner-border text-info spinner-border-sm";
-      this.loading.role = "status";
-      this.loading.innerHTML =
-        '<span class="visually-hidden">Loading...</span>';
-      this.loading.style.position = "absolute";
-      this.loading.style.top = "15%";
-      this.loading.style.left = "50%";
-      this.modal.querySelector(".modal-body").appendChild(this.loading);
-      this.params = params;
-      let response = await this.getData(this.api);
-      this.newModal.show();
-      // loading sau khi modal đã được hiển thị
-      this.newModal._element.addEventListener("shown.bs.modal", () => {
-        if (response.status !== 200) {
-          // Xử lý trường hợp khi API trả về mã lỗi khác 200
-          showErrorMD("Đã xảy ra lỗi khi lấy dữ liệu vui lòng thử lại.");
-          return;
-        }
-        let data = response.data?.data?.length
-          ? response.data.data[0]
-          : response.data[0];
-        // Lấy tất cả các phần tử trong form
-        const elements = this.form.elements;
-        for (let item of elements) {
-          const name = item.getAttribute("name");
-          // tìm kiếm và lấy dữ liệu của data dựa vào name thẻ
-          if (name && data.hasOwnProperty(name)) {
-            let value = data[name];
-            // Kiểm tra nếu phần tử là Choices instance và cập nhật Choices
-            if (item.hasAttribute("data-choice")) {
-              let id = item.getAttribute("id");
-              let choiceInstance = this.choice[`#${id}`];
-              choiceInstance.setChoiceByValue(String(value));
-            } else {
-              // Kiểm tra và áp dụng định dạng giá hoặc thời gian
-              if (this.priceFormat.includes(name)) {
-                item.value = numberFormat(value);
-              } else if (this.dateFormat.includes(name)) {
-                item.value = dateTimeFormat(value);
-              } else {
-                item.value = value;
-              }
-            }
-          }
-        }
-      });
-    } catch (error) {
-      // Xử lý ngoại lệ trong quá trình thực thi
-      console.error("Error during startModalEdit:", error);
-      showErrorMD("Có lỗi xảy ra, vui lòng thử lại sau.");
-    } finally {
-      // Ẩn loading và hiển thị form sau khi tất cả quá trình hoàn thành
-      this.loading.style.display = "none"; // Ẩn loading khi modal đã hiển thị
-      this.form.style.display = "flex"; // Hiển thị form
-      // Đảm bảo closeModal được gọi sau khi modal được khởi tạo
-      this.modal.addEventListener("hidden.bs.modal", () => {
-        this.reset();
-        this.newModal.hide();
-        this.loading.style.display = "none"; // Ẩn loading khi modal đã hiển thị
-        this.form.style.display = "flex"; // Hiển thị form
-      });
-    }
-  }
-
-
 
   /**Hàm có tác dụng gửi thông tin form
    * @param {string} api Nhận vào ip thực hiện việc gửi dữ liệu
@@ -1153,7 +995,10 @@ class FormHelpers extends RequestServerHelpers {
         if (this.responseHandler) if (this.responseHandler.status === res.data.status) this.responseHandler.function();
         // Kiểm tra trạng thái trả về
         if (res.data.status >= 400) {
-          showErrorMD(res.data[messageError]);
+          // thông báo lỗi về form
+          if(res.data.status == 403)this.showErrorResponse(res.data[messageError]);
+          // hiển thi modal thông báo lỗi
+          else showErrorMD(res.data[messageError]);
           return false;
         }
         // Hiển thị thông điệp thành công và thực hiện các thao tác cần thiết
@@ -1161,7 +1006,7 @@ class FormHelpers extends RequestServerHelpers {
         if (this.modalStatus) {
           // Ẩn form và đóng modal
           this.form.style.display = "none";
-          this.newModal.hide();
+          this.modal.hideModal();
         }
         // Trả về đối tượng kết quả
         return { status: true, data: res.data.data };
@@ -1173,6 +1018,18 @@ class FormHelpers extends RequestServerHelpers {
       return { status: false, error: err };
     }
   }
+
+  /**Hàm có tác dụng thông báo lỗi đến từng thẻ sau khi submit*/
+  showErrorResponse(error) {
+    // Lấy tất cả các phần tử có thể là input, select, hoặc textarea trong form
+    for(let name in error){
+      const elements = this.form.querySelector('[name="'+name+'"]');
+      if(elements){
+        changeValidateMessage(elements, true,  error[name], ["p-2", "small", "text-danger"]);
+      }
+    }
+  }
+  
 
   /**Hàm có tác dụng lắng nghe sự kiện submit của form
    * @param {String} method  nhận vào method thực hiện gửi dữ liệu
@@ -1663,11 +1520,7 @@ class LayoutHelpers extends URLHelpers {
         data = data[0];
       }
     }
-    if (data.data.length <= 0) {
-      this.insertHTMLInTable(data, 0);
-    } else {
-      this.insertHTMLInTable(data, 1);
-    }
+    this.insertHTMLInTable(data.data, data.status === 200 ? 1: 0);
   }
 
   /**Hàm có tác dụng gọi api
@@ -1725,10 +1578,10 @@ class LayoutHelpers extends URLHelpers {
             }
           });
         } else if (this.total === true) {
-          // Trường hợp this.total là true, cập nhật tổng số sản phẩm
+          // Trường hợp this.total là true, cập nhật tổng số
           const totalElement = document.getElementById("total");
           if (totalElement) {
-            totalElement.innerText = `${res.data.total} sản phẩm`;
+            totalElement.innerText = `${res.data.data.total}`;
           }
         }
 
@@ -1829,24 +1682,18 @@ class LayoutHelpers extends URLHelpers {
                 <div class="col-auto d-flex">
                     <p class="mb-0 d-none d-sm-block me-3 fw-semibold text-body">
                         ${data.from} đến ${data.to}
-                        <span class="text-body-tertiary"> Trong </span> ${data.total
-        }
+                        <span class="text-body-tertiary"> Trong </span> ${data.total}
                     </p>
-                    <a class="btn-link" id = "btn-show-all" href="javascript:" title="Tất cả" ${data.all ? "hidden" : ""
-        }> Tất cả
+                    <a class="btn-link" id = "btn-show-all" href="javascript:" title="Tất cả" ${data.all ? "hidden" : ""}> Tất cả
                         <span class="fas fa-angle-right ms-1"></span>
                     </a>
-                    <a class="btn-link" id="btn-collapse" href="javascript:" title="Thu gọn" ${data.all ? "" : "hidden"
-        }> Thu gọn<span class="fas fa-angle-left ms-1"></span>
+                    <a class="btn-link" id="btn-collapse" href="javascript:" title="Thu gọn" ${data.all ? "" : "hidden"}> Thu gọn<span class="fas fa-angle-left ms-1"></span>
                     </a>
                 </div>
                     <nav class="col-auto d-flex">
                         <ul class="mb-0 pagination justify-content-end">
-                            <li class="page-item ${data.currentPage <= 1 ? "disabled" : ""
-        }">
-                                <a class="page-link ${data.currentPage <= 1 ? "disabled" : ""
-        }" id="btn-before" ${data.currentPage <= 1 ? 'disabled=""' : ""
-        } href="javascript:" title="Trang trước" >
+                            <li class="page-item ${data.currentPage <= 1 ? "disabled" : ""}">
+                                <a class="page-link ${data.currentPage <= 1 ? "disabled" : ""}" id="btn-before" ${data.currentPage <= 1 ? 'disabled=""' : ""} href="javascript:" title="Trang trước" >
                                     <span class="fas fa-chevron-left"></span>
                                 </a>
                             </li>`;
@@ -2141,4 +1988,4 @@ class LayoutHelpers extends URLHelpers {
   }
 }
 
-export { RequestServerHelpers, codeAutoGenerationHelpers, generateCode, FormHelpers, URLHelpers, ConfirmHelpers, LayoutHelpers, EventHelpers, FormTableHelpers }
+export { RequestServerHelpers, FormHelpers, URLHelpers, ConfirmHelpers, LayoutHelpers, EventHelpers, FormTableHelpers }

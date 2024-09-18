@@ -1,6 +1,6 @@
 /**Tác giả: Vũ Hồng Điệp */
 
-import { codeAutoGenerationHelpers, RequestServerHelpers } from "./core";
+import { RequestServerHelpers } from "./core.js";
 
 /**Hàm có tác dụng xóa bỏ định sạng dấu , ở tiền tệ
  * Từ 2,000,000 = 2000000
@@ -82,21 +82,6 @@ const codeGenerationHelpers = (codeDefault = "MBT-PN", dom = "") => {
   return code;
 };
 
-/**Hàm có tác dụng nhận đưa ra số phiếu vào 1 thẻ nào đó sử dụng id
- * @param codeDefault nhận vào  mã bắt đầu
- * @param dom nhận vào dom cần trả về sử dụng id
- */
-async function generateCode(codeDefault, dom) {
-  dom = document.getElementById(dom);
-  if(!check(dom)) return;
-  try {
-      const result = await codeAutoGenerationHelpers(codeDefault);
-      dom.value = result;
-  } catch (error) {
-      console.error("Có lỗi xảy ra:", error);
-  }
-}
-
 
 /**Hàm có tác dụng kiếm tra đầu ra có trống hay không
  * @param {String} output Dữ liệu bạn muốn kiểm tra
@@ -139,3 +124,5 @@ async function codeAutoGenerationHelpers(baseCode = "PN-SX") {
     return `${baseCode}-${date}-${idStr}`;
   }
 }
+
+export {removeCommasHelpers, codeAutoGenerationHelpers, generateCode, checkOutput, codeGenerationHelpers, priceToText, formatNumberAndCheckEmpty}
