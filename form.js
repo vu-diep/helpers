@@ -1,4 +1,5 @@
 import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core";
+import { formatDataResponse } from "./coreFunctions";
 
 /**Class làm việc với modal */
 class ModalHelpers extends RequestServerHelpers {
@@ -419,6 +420,7 @@ class SelectHelpers {
         return customProps;
     }
 
+
     /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ select khác
      * @param {string} selectChange ID, Class của thẻ được chọn
      * @param {string} selectEeceive ID, Class của thẻ được nhận
@@ -594,12 +596,11 @@ class SelectHelpers {
      * @param {string} api api nhận lấy ra dữ liệu
      * @param {string} key nhận vào param của api,
      * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option
-     * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
      * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
      * @param {string} params là 1 object chứa các tùy chọn kèm theo khi gửi request
      * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
      */
-    async selectMore(select, api, key, label, labelDefault, params = {}) {
+    async selectMore(select, api, key, label, params = {}) {
         let myTimeOut = null;
         let selectDom = document.querySelector(select);
         let choiceSelect = this.form.choice[select];
@@ -615,36 +616,9 @@ class SelectHelpers {
                 try {
                     this.params = { [key]: query, ...params };
                     let res = await this.request.getData(api);
-                    if (res.status !== 200) {
-                        showErrorMD("Không tìm thấy dữ liệu bạn cần");
-                        choiceSelect.handleLoadingState(false); // Tắt trạng thái loading
-                        return;
-                    }
-                    let data = res.data?.data?.length > 0 ? res.data.data : res.data;
-                    let choiceData = data.map((item) => {
-                        let labelValue;
-                        if (Array.isArray(label)) {
-                            // Nếu label là mảng, kết hợp các giá trị từ các trường được chỉ định
-                            labelValue = label.map((lbl) => item[lbl]).join("-");
-                        } else {
-                            // Nếu label là một chuỗi, lấy giá trị của trường đó
-                            labelValue = item[label];
-                        }
-                        let customProps = {};
-                        if (Array.isArray(this.customProperties) && this.customProperties.length > 0) {
-                            this.customProperties.forEach((prop) => {
-                                if (item.hasOwnProperty(prop)) customProps[prop] = item[prop];
-                            });
-                        }
-                        return {
-                            label: labelValue,
-                            value: item[this.value],
-                            customProperties: customProps,
-                        };
-                    });
-                    // Thêm giá trị mặc định
-                    choiceData.unshift({ value: "", label: labelDefault });
-                    choiceSelect.setChoices(choiceData, "value", "label", true); // Đổ dữ liệu mới vào select
+                    let dataChoice = this.processApiData(res, label, "");
+
+                    choiceSelect.setChoices(dataChoice, "value", "label", true); // Đổ dữ liệu mới vào select
                     choiceSelect.handleLoadingState(false); // Tắt trạng thái loading
                     choiceSelect.input.element.focus(); // Trả lại focus cho ô input của Choices
                 } catch (error) {
@@ -667,43 +641,20 @@ class SelectHelpers {
         // Tìm đối tượng Choices cho selectChange và select
         let choiceSelect = this.form.choice[select];
         // Kiểm tra nếu đối tượng Choices tồn tại
-        if (choiceSelect) {
-            choiceSelect.handleLoadingState(true);
-            let res = await this.request.getData(api);
-            if (res.status === 200) {
-                let data = res.data.data?.length > 0 ? res.data.data : res.data;
-                let dataChoice = data.map((item) => {
-                    let labelValue;
-                    if (Array.isArray(label)) {
-                        // Nếu label là mảng, kết hợp các giá trị từ các trường được chỉ định
-                        labelValue = label.map((lbl) => item[lbl]).join("-");
-                    } else {
-                        // Nếu label là một chuỗi, lấy giá trị của trường đó
-                        labelValue = item[label];
-                    }
-                    let customProps = {};
-                    if (Array.isArray(this.customProperties) && this.customProperties.length > 0) {
-                        this.customProperties.forEach((prop) => {
-                            if (item.hasOwnProperty(prop)) {
-                                customProps[prop] = item[prop];
-                            }
-                        });
-                    }
-                    return {
-                        label: labelValue,
-                        value: item[this.value],
-                        customProperties: customProps,
-                    };
-                });
-                // thêm giá trị mặc định
-                dataChoice.unshift({ value: "", label: labelDefault });
-                // trả dữ liệu về thẻ select
-                choiceSelect.setChoices(dataChoice, "value", "label", true);
-            }
-            choiceSelect.handleLoadingState(false);
-        } else {
+        if (!choiceSelect) {
             console.error("Không có đối tượng choices này: " + select);
+            return;
+        } 
+        choiceSelect.handleLoadingState(true);
+        let res = await this.request.getData(api);
+        if (res.status === 200) {
+            let dataChoice = this.processApiData(res, label, labelDefault);
+            // thêm giá trị mặc định
+            dataChoice.unshift({ value: "", label: labelDefault });
+            // trả dữ liệu về thẻ select
+            choiceSelect.setChoices(dataChoice, "value", "label", true);
         }
+        choiceSelect.handleLoadingState(false);
     }
 }
 
@@ -818,6 +769,7 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.file = new FileHelpers();
         this.url = new URLHelpers();
 
+        // mặc định khởi tạo choice
         this.choice.startChoice();
 
     }

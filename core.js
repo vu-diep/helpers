@@ -1,4 +1,4 @@
-import { removeCommasHelpers } from "./common.js";
+import { checkOutput, removeCommasHelpers } from "./common.js";
 import { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers} from "./coreFunctions.js";
 // xác định message trả về
 const messageError = "error";
@@ -145,15 +145,26 @@ class URLHelpers {
     return parts.pop();
   }
 
-  getParams() {
+  /**Hàm có tác dụng lấy ra param trên url
+   * @param {string} [key=""] nhận vào key của param nếu bạn chỉ cần lấy 1 trường cụ thế. Nếu bạn muốn lấy tất cả param có trên url thì không cần quan tâm đến trường này
+   */
+  getParams(key = "") {
     // Lấy URL hiện tại từ window.location
     const params = new URLSearchParams(window.location.search);
+    
+    // Nếu key không phải là chuỗi rỗng, trả về giá trị của key
+    if (key !== "") {
+      return params.get(key);
+    }
+    
+    // Nếu key rỗng, trả về toàn bộ danh sách các tham số
     const paramList = {};
-    for (const [key, value] of params.entries()) {
-      paramList[key] = value;
+    for (let [paramKey, value] of params.entries()) {
+      paramList[paramKey] = value;
     }
     return paramList;
   }
+  
 
   /**Hàm có tác dụng xóa param trên url
    * @param key Nhận vào key của param đó
@@ -311,10 +322,9 @@ class ConfirmHelpers {
 // Class thao tác với việc xử lý file
 class FileHelpers{
   /**Hàm có tác dụng xuất file excel
-   * @param dom nhận id class để lắng nghe sự kiện click
    * @param api api xuất file
    * @param name tên file file
-   * @param buttonLoadding
+   * @param dom nhận id class để lắng nghe sự kiện click
    */
   exportExcel(api, name, dom = "") {
     const downloadFile = async (api, name) => {
@@ -448,7 +458,7 @@ class LayoutHelpers extends URLHelpers {
 
   /**Hàm có tác dụng gọi api
    */
-  getUI() {
+  async getUI() {
     if (Array.isArray(this.api)) {
       // Nếu this.api là một mảng, gọi đồng thời các API trong mảng đó
       return axios
@@ -469,9 +479,8 @@ class LayoutHelpers extends URLHelpers {
             } else if (this.total === true) {
               // Trường hợp this.total là true, cập nhật tổng số sản phẩm
               const totalElement = document.getElementById("total");
-              if (totalElement) {
-                totalElement.innerText = `${res.total} sản phẩm`;
-              }
+              if(!check(totalElement, "total")) return;
+              totalElement.innerText = `${res.total} sản phẩm`;
             }
 
             // Trả về dữ liệu của tất cả các API
@@ -488,39 +497,30 @@ class LayoutHelpers extends URLHelpers {
       return;
     }
     // Nếu this.api không phải là mảng
-    return axios
-      .get(this.api)
-      .then((res) => {
-        // Cập nhật nội dung cho DOM nếu this.total là một mảng
-        if (Array.isArray(this.total)) {
-          this.total.forEach((item) => {
-            const element = document.getElementById(item.dom);
-            if (element) {
-              let  value = res.data.data[item.key];
-              if(item.format && item.format === "date"){
-                  value = dateTimeFormat(value);
-              }else if(item.format === "number"){
-                value = formatNumber(value);
-              }
-              element.innerText = `${value} ${item.subContent || ""}`.trim();
-            }
-          });
-        } else if (this.total === true) {
-          // Trường hợp this.total là true, cập nhật tổng số
-          const totalElement = document.getElementById("total");
-          if (totalElement) {
-            totalElement.innerText = `${res.data.data.total}`;
+    const res = await this.request.getData();
+    // Cập nhật nội dung cho DOM nếu this.total là một mảng
+    if (Array.isArray(this.total)) {
+      this.total.forEach((item) => {
+        const element = document.getElementById(item.dom);
+        if (element) {
+          let  value = res.data[item.key];
+          if(item.format && item.format === "date"){
+              value = dateTimeFormat(value);
+          }else if(item.format === "number"){
+            value = formatNumber(value);
           }
+          element.innerText = `${value} ${item.subContent || ""}`.trim();
         }
-
-        // Trả về dữ liệu
-        return res.data;
-      })
-      .catch((err) => {
-        showErrorMD("Vui lòng gọi IT");
-        console.error(err);
-        return false; // Trả về false trong trường hợp có lỗi
       });
+    } else if (this.total === true) {
+      // Trường hợp this.total là true, cập nhật tổng số
+      const totalElement = document.getElementById("total");
+      if(!check(totalElement, "total")) return;
+      totalElement.innerText = `${res.data.total}`;
+    }
+
+    // Trả về dữ liệu
+    return res.data;
   }
 
   /**Hàm có tác dụng đổ ra dữ liệu
@@ -530,14 +530,15 @@ class LayoutHelpers extends URLHelpers {
   insertHTMLInTable(data, stauts = 0) {
     const domForm = document.querySelector(this.form);
     if (!check(domForm, this.form)) return;
+    this.form = domForm;
 
-    if (domForm) {
-      const tableElement = domForm.closest("table");
-      const thead = tableElement.querySelector("thead");
-      const thElements = thead.querySelectorAll("th");
-      const numberOfThElements = thElements.length;
-      this.colspan = numberOfThElements;
-    }
+    // đếm thẻ th để thực hiện colspan khi có lỗi
+    const tableElement = domForm.closest("table");
+    const thead = tableElement.querySelector("thead");
+    const thElements = thead.querySelectorAll("th");
+    const numberOfThElements = thElements.length;
+    this.colspan = numberOfThElements;
+
     let html = "";
     if (stauts === 0) {
       html += `
@@ -609,8 +610,8 @@ class LayoutHelpers extends URLHelpers {
             <div class="row align-items-center justify-content-between py-2 pe-0 fs-9">
                 <div class="col-auto d-flex">
                     <p class="mb-0 d-none d-sm-block me-3 fw-semibold text-body">
-                        ${data.from} đến ${data.to}
-                        <span class="text-body-tertiary"> Trong </span> ${data.total}
+                        ${checkOutput(data.from, 0)} đến ${checkOutput(data.to, 0)}
+                        <span class="text-body-tertiary"> Trong </span> ${checkOutput(data.total, 0)}
                     </p>
                     <a class="btn-link" id = "btn-show-all" href="javascript:" title="Tất cả" ${data.all ? "hidden" : ""}> Tất cả
                         <span class="fas fa-angle-right ms-1"></span>
@@ -766,6 +767,19 @@ class LayoutHelpers extends URLHelpers {
     this.confirm.config.success = async () => {
       return await this.request.requestData(method);
     };
+  }
+
+  /**hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công việc bất kỳ. Thường dùng cho edit hoặc delete 
+   * @param {string} className của thẻ cần lắng nghe sự kiện click
+   * @param {callback} callback là một hàm bất kỳ có tác dụng thực hiện sau khi click
+   */
+  handleEventClick(className, callback){
+    this.form.querySelectorAll(className).forEach(button => {
+      button.addEventListener('click', (e) => {
+        // Thực hiện 1 công việc bất kì
+        callback(e);
+      })
+    })
   }
 }
 

@@ -125,4 +125,4 @@ async function codeAutoGenerationHelpers(baseCode = "PN-SX") {
   }
 }
 
-export {removeCommasHelpers, codeAutoGenerationHelpers, generateCode, checkOutput, codeGenerationHelpers, priceToText, formatNumberAndCheckEmpty}
+export {removeCommasHelpers, codeAutoGenerationHelpers, generateCode, checkOutput, codeGenerationHelpers, priceToText, formatNumberAndCheckEmpty, roundToDecimalHelpers}
