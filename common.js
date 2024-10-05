@@ -1,6 +1,7 @@
 /**Tác giả: Vũ Hồng Điệp */
 
 import { RequestServerHelpers } from "./core.js";
+import { numberFormatHelpers } from "./coreFunctions.js";
 
 /**Hàm có tác dụng xóa bỏ định sạng dấu , ở tiền tệ
  * Từ 2,000,000 = 2000000
@@ -44,16 +45,16 @@ function priceToText(price) {
   let priceUnit = "";
 
   if (price >= 1000000000) {
-    priceText = numberFormat(price / 1000000000, 0);
+    priceText = numberFormatHelpers(price / 1000000000, 0);
     priceUnit = "Tỷ";
   } else if (price >= 1000000) {
-    priceText = numberFormat(price / 1000000, 0);
+    priceText = numberFormatHelpers(price / 1000000, 0);
     priceUnit = "Triệu";
   } else if (price >= 1000) {
-    priceText = numberFormat(price / 1000, 0);
+    priceText = numberFormatHelpers(price / 1000, 0);
     priceUnit = "Nghìn";
   } else {
-    priceText = numberFormat(price, 0);
+    priceText = numberFormatHelpers(price, 0);
   }
   priceUnit = priceUnit === "" ? "" : priceUnit;
   return `${priceText} ${priceUnit}`;

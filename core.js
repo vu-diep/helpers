@@ -1,82 +1,73 @@
 import { checkOutput, removeCommasHelpers } from "./common.js";
-import { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers} from "./coreFunctions.js";
+import { formatApiUrl,check, numberFormatHelpers, convertDateFormatHelpers, formatAPI,  formatDataResponse, clearAllClassValidateHelpers } from "./coreFunctions.js";
 // xác định message trả về
 const messageError = "error";
 const messageSussces = "success";
 
-// class thao tác với server
+/**
+ * class giao tiếp với server
+ * @param {string} route API cần sử dụng cho việc request server
+ * @param {object} params các params cần gửi đi
+ * @param {bolean=true} statusMessage xác định xem có cần thông báo xong sau khi gửi request server không. Nếu bạn để false thì cả thông báo lỗi và thông báo thành công sẽ không được hiển thị
+ */
 class RequestServerHelpers {
   constructor(route) {
     this.route = route;
     this.params = {};
+    this.statusMessage = true
   }
 
   /**Hàm có tác dụng lấy ra dữ liệu
    * @param {string} [api=""] Nhận vào api lấy dữ liệu
    */
   async getData(api = "") {
-    try {
-      const formatAPI = api === "" ? this.route : api;
-      const response = await axios.get(formatAPI, {
-        params: this.params,
-      });
-      return response.data;
-    } catch (error) {
-      console.error(error);
-      showErrorMD("Vui lòng gọi IT");
-      return false; // Trả về false khi có lỗi
-    }
+    const formatAPI = api === "" ? this.route : api;
+    const response = await axios.get(formatAPI, {
+      params: this.params,
+    });
+    return response.data;
   }
 
   /**Hàm có tác dụng gửi dữ liệu
    * @param {string} [api=""] Nhận vào api gửi dữ liệu
    */
   async postData(api = "", data, debug = false) {
-    try {
-      const formatAPI = api === "" ? this.route : api;
-      const response = await axios.post(formatAPI, data, {
-        params: this.params,
-      });
-      if (debug) {
-        console.log(response);
-        return;
-      }
+    const formatAPI = api === "" ? this.route : api;
+    const response = await axios.post(formatAPI, data, {
+      params: this.params,
+    });
+    if (debug) {
+      console.log(response);
+      return;
+    }
+    if (this.statusMessage) {
       if (response.data.status >= 400) {
         showErrorMD(response.data[messageError]);
       } else {
         showMessageMD(response.data[messageSussces]);
       }
-      return response.data; // Trả về dữ liệu thành công
-    } catch (error) {
-      console.error(error);
-      showErrorMD("Vui lòng gọi IT");
-      return false; // Trả về false khi có lỗi
     }
+    return response.data; // Trả về dữ liệu thành công
   }
 
   /**Hàm có tác dụng thực hiện gửi dữ liệu theo ý người dùng . Chỉ thực hiện gửi dữ liệu theo param với số lượng ít.
    * @param {string} [api=""] Nhận vào api xóa dữ liệu
    */
   async requestData(method, api = "") {
-    try {
-      const formatAPI = api === "" ? this.route : api;
-      const response = await axios({
-        method: method,
-        url: formatAPI,
-        params: this.params,
-      });
-      if (response.data.status === 200) {
-        showMessageMD(response.data[messageSussces]);
-        return response.data; // Trả về dữ liệu thành công
+    const formatAPI = api === "" ? this.route : api;
+    const response = await axios({
+      method: method,
+      url: formatAPI,
+      params: this.params,
+    });
+    if (this.statusMessage) {
+      if (response.data.status >= 400) {
+        showErrorMD(response.data[messageError]);
       } else {
-        showErrorMD(response.data.error);
-        throw new Error(response.data[messageError]); // Ném lỗi nếu response không thành công
+        showMessageMD(response.data[messageSussces]);
       }
-    } catch (error) {
-      console.error(error);
-      showErrorMD("Vui lòng gọi IT");
-      return false; // Trả về false khi có lỗi
     }
+    return response.data; // Trả về dữ liệu thành công
   }
 }
 
@@ -151,12 +142,12 @@ class URLHelpers {
   getParams(key = "") {
     // Lấy URL hiện tại từ window.location
     const params = new URLSearchParams(window.location.search);
-    
+
     // Nếu key không phải là chuỗi rỗng, trả về giá trị của key
     if (key !== "") {
       return params.get(key);
     }
-    
+
     // Nếu key rỗng, trả về toàn bộ danh sách các tham số
     const paramList = {};
     for (let [paramKey, value] of params.entries()) {
@@ -164,7 +155,7 @@ class URLHelpers {
     }
     return paramList;
   }
-  
+
 
   /**Hàm có tác dụng xóa param trên url
    * @param key Nhận vào key của param đó
@@ -286,29 +277,31 @@ class ConfirmHelpers {
   constructor() {
     this.modal = document.getElementById("modalConfirmDelete");
     this.btnConfirm = this.modal.querySelector(".btn-confirm");
+    this.originalText = this.btnConfirm.textContent;
     this.modalBT = new bootstrap.Modal(this.modal, { keyboard: false });
     this.element = this.modal.querySelector(".confirm-message");
 
     this.btnConfirm.addEventListener("click", async (e) => {
       let originalText = this.btnConfirm.textContent;
-      await this.loading(true, originalText);
-      let response = await this.config.success(e);
-      // nếu thực hiện thành công
-      if (response && response.status) {
-        await this.loading(false, originalText);
-        this.hide();
-      }
+      this.loading(true, originalText);
+      this.config.success(e);
     });
   }
 
-  loading(type = false, text = "") {
-    btnLoading(this.btnConfirm, type, text);
+  /**
+   * thực hiện việc loading ở button khi được click
+   * @param {boolean[false]} type xác định xem có thực hiện loadding hay không. Mặc định là không loadding
+   */
+  loading(type = false) {
+    btnLoading(this.btnConfirm, type, this.originalText);
   }
 
+  // Thực hiện ẩn confirm
   hide() {
     this.modalBT.hide();
   }
 
+  // Thực hiện hiển thị confirm
   show() {
     this.btnConfirm.style.backgroundColor = this.config.btnBg;
     this.element.textContent = this.config.text;
@@ -320,7 +313,7 @@ class ConfirmHelpers {
 }
 
 // Class thao tác với việc xử lý file
-class FileHelpers{
+class FileHelpers {
   /**Hàm có tác dụng xuất file excel
    * @param api api xuất file
    * @param name tên file file
@@ -453,7 +446,7 @@ class LayoutHelpers extends URLHelpers {
         data = data[0];
       }
     }
-    this.insertHTMLInTable(data.data, data.status === 200 ? 1: 0);
+    this.insertHTMLInTable(data.data, data.status === 200 ? 1 : 0);
   }
 
   /**Hàm có tác dụng gọi api
@@ -479,7 +472,7 @@ class LayoutHelpers extends URLHelpers {
             } else if (this.total === true) {
               // Trường hợp this.total là true, cập nhật tổng số sản phẩm
               const totalElement = document.getElementById("total");
-              if(!check(totalElement, "total")) return;
+              if (!check(totalElement, "total")) return;
               totalElement.innerText = `${res.total} sản phẩm`;
             }
 
@@ -497,16 +490,16 @@ class LayoutHelpers extends URLHelpers {
       return;
     }
     // Nếu this.api không phải là mảng
-    const res = await this.request.getData();
+    const res = await this.request.getData(this.api);
     // Cập nhật nội dung cho DOM nếu this.total là một mảng
     if (Array.isArray(this.total)) {
       this.total.forEach((item) => {
         const element = document.getElementById(item.dom);
         if (element) {
-          let  value = res.data[item.key];
-          if(item.format && item.format === "date"){
-              value = dateTimeFormat(value);
-          }else if(item.format === "number"){
+          let value = res.data[item.key];
+          if (item.format && item.format === "date") {
+            value = dateTimeFormat(value);
+          } else if (item.format === "number") {
             value = formatNumber(value);
           }
           element.innerText = `${value} ${item.subContent || ""}`.trim();
@@ -515,12 +508,12 @@ class LayoutHelpers extends URLHelpers {
     } else if (this.total === true) {
       // Trường hợp this.total là true, cập nhật tổng số
       const totalElement = document.getElementById("total");
-      if(!check(totalElement, "total")) return;
+      if (!check(totalElement, "total")) return;
       totalElement.innerText = `${res.data.total}`;
     }
 
     // Trả về dữ liệu
-    return res.data;
+    return res;
   }
 
   /**Hàm có tác dụng đổ ra dữ liệu
@@ -530,7 +523,6 @@ class LayoutHelpers extends URLHelpers {
   insertHTMLInTable(data, stauts = 0) {
     const domForm = document.querySelector(this.form);
     if (!check(domForm, this.form)) return;
-    this.form = domForm;
 
     // đếm thẻ th để thực hiện colspan khi có lỗi
     const tableElement = domForm.closest("table");
@@ -594,7 +586,7 @@ class LayoutHelpers extends URLHelpers {
           let footerRow = `<tr>`;
           footerRow += item.html.replace(
             "{total}",
-            numberFormat(checkOutput(totals[item.column], 0))
+            numberFormatHelpers(checkOutput(totals[item.column], 0))
           );
           footerRow += `</tr>`;
           html += footerRow;
@@ -771,15 +763,28 @@ class LayoutHelpers extends URLHelpers {
 
   /**hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công việc bất kỳ. Thường dùng cho edit hoặc delete 
    * @param {string} className của thẻ cần lắng nghe sự kiện click
-   * @param {callback} callback là một hàm bất kỳ có tác dụng thực hiện sau khi click
-   */
-  handleEventClick(className, callback){
-    this.form.querySelectorAll(className).forEach(button => {
-      button.addEventListener('click', (e) => {
-        // Thực hiện 1 công việc bất kì
-        callback(e);
-      })
+   * @param {callback} callback(id, e) là một hàm bất kỳ có tác dụng thực hiện sau khi click
+   * id: là id của thẻ bạn vừa click thông thường tôi sẽ đưa id của sản phẩm vào id thẻ
+   * e: bản thân cái thẻ vừa được click
+   * VD:
+   * layout.handleEventClick("btn-click", async(id, e) => {
+        console.log(id);
+        console.log(e);
     })
+   */
+  handleEventClick(className, callback) {
+    const domForm = document.querySelector(this.form);
+    if (!check(domForm, this.form)) return;
+
+    domForm.addEventListener("click", function (e) {
+      // Kiểm tra xem phần tử được click hoặc thẻ cha của nó có chứa class không
+      const targetElement = e.target.closest(`.${className}`);
+
+      if (targetElement) {
+        let id = targetElement.id;
+        callback(id, e);
+      }
+    });
   }
 }
 

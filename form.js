@@ -1,5 +1,9 @@
 import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core.js";
-import { formatDataResponse, check  } from "./coreFunctions.js";
+import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers } from "./coreFunctions.js";
+import { removeCommasHelpers } from "./common.js";
+// xác định message trả về
+const messageError = "error";
+const messageSussces = "success";
 
 /**Class làm việc với modal */
 class ModalHelpers extends RequestServerHelpers {
@@ -20,18 +24,18 @@ class ModalHelpers extends RequestServerHelpers {
         this.modal = null;
         this.loading = null;
         this.newModal = null;
-
     }
 
     /** Khởi tạo modal và xử lý sự kiện mở modal 
-     * @param {string} showSelector nhận vào 1 id, class để lắng nghe việc mở modal. Nếu để trống nó sẽ tự động mở modal sau khi gọi hàm
+     * @param {string} bntStartModal nhận vào 1 id, class để lắng nghe việc mở modal. Nếu để trống nó sẽ tự động mở modal sau khi gọi hàm
      * @param {Array} dataDefault dữ liệu mặc định được đổ vào form khi mở modal
      * Ví dụ:
      * dataDefault = [
      * { dom: "Id hoặc class đổ ra dữ liệu mặc định", value: "Dữ liệu mặc định"},
      * ]
     */
-    startModal(showSelector = "", dataDefault = []) {
+    startModal(bntStartModal, dataDefault = []) {
+
         const openModal = () => {
             this.modal = document.querySelector(this.modalSelector);
             if (!check(this.modal, this.modalSelector)) return;
@@ -49,10 +53,12 @@ class ModalHelpers extends RequestServerHelpers {
             this.resetModal();
         };
 
-        // Nếu có showSelector, gắn sự kiện click vào phần tử đó để mở modal
-        if (showSelector) {
-            const element = document.querySelector(showSelector);
-            if (!check(element, showSelector)) return;
+        // Nếu có bntStartModal, gắn sự kiện click vào phần tử đó để mở modal
+
+        if (bntStartModal) {
+            const element = document.querySelector(bntStartModal);
+
+            if (!check(element, bntStartModal)) return;
             element.addEventListener("click", openModal);
         } else {
             openModal();
@@ -78,13 +84,8 @@ class ModalHelpers extends RequestServerHelpers {
                 showErrorMD("Đã xảy ra lỗi khi lấy dữ liệu. Vui lòng thử lại.");
                 return;
             }
-
             let data = response.data?.data?.length ? response.data.data[0] : response.data[0];
-
-            this.modal.addEventListener("shown.bs.modal", () => {
-                this.hideLoading();
-                this.fillFormWithData(data); // Đổ dữ liệu vào form
-            });
+            this.fillFormWithData(data); // Đổ dữ liệu vào form
             // Khởi tạo sự kiện đóng modal
             this.resetModal();
         } catch (error) {
@@ -103,6 +104,7 @@ class ModalHelpers extends RequestServerHelpers {
         if (this.newModal) {
             this.newModal.show();
             // Ẩn form và đóng modal
+            this.hideLoading();
             this.form.form.style.display = "flex";
         } else {
             console.error("Modal instance is not initialized.");
@@ -175,7 +177,7 @@ class ModalHelpers extends RequestServerHelpers {
                     }
                 } else {
                     if (this.priceFormat.includes(name)) {
-                        item.value = numberFormat(value);
+                        item.value = numberFormatHelpers(value);
                     } else if (this.dateFormat.includes(name)) {
                         item.value = dateTimeFormat(value);
                     } else {
@@ -184,6 +186,8 @@ class ModalHelpers extends RequestServerHelpers {
                 }
             }
         }
+        this.hideLoading();
+
     }
 
     /** Reset modal khi đóng */
@@ -198,7 +202,7 @@ class ModalHelpers extends RequestServerHelpers {
     /** Reset form và các phần tử modal */
     resetForm() {
         if (this.form) {
-            this.form.resetForm();
+            this.form.reset.resetForm();
         }
         if (this.loading) this.loading.style.display = "none";
     }
@@ -393,15 +397,32 @@ class SelectHelpers {
 
     // Hàm xử lý chung cho dữ liệu trả về và thiết lập cho Choices
     processApiData(res, label, labelDefault) {
+
         if (res.status !== 200) {
             showErrorMD("Không có dữ liệu bạn cần tìm");
             return [{ value: "", label: labelDefault }];
         }
         let data = formatDataResponse(res);
+    
         return data.map(item => {
-            const labelValue = Array.isArray(label)
-                ? label.map(lbl => item[lbl]).join("-")
-                : item[label];
+            let labelValue = "";
+    
+            // Kiểm tra nếu label là object
+            if (typeof label === "object" && !Array.isArray(label)) {
+                labelValue = Object.keys(label).map(lblKey => {
+                    const itemKey = label[lblKey]; // Giá trị trong object làm key để lấy dữ liệu từ item
+                    return lblKey + (item[itemKey] || ""); // Hiển thị key và giá trị
+                }).join("");
+            } 
+            // Nếu label là mảng
+            else if (Array.isArray(label)) {
+                labelValue = label.map(lbl => item[lbl]).join("-");
+            } 
+            // Nếu label là string thông thường
+            else {
+                labelValue = item[label];
+            }
+    
             const customProps = this.getCustomProperties(item);
             return {
                 label: labelValue,
@@ -410,6 +431,7 @@ class SelectHelpers {
             };
         });
     }
+    
 
     // Lấy customProperties từ item
     getCustomProperties(item) {
@@ -430,28 +452,43 @@ class SelectHelpers {
      * @param {string} selectEeceive ID, Class của thẻ được nhận
      * @param {string} api api nhận lấy ra dữ liệu
      * @param {string} key là phần tham số mặc định cần gửi đi sau khi lắng nghe được sự kiện change,
-     * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option. Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng
+     * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option.
+     *  Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng lúc này label của bạn sẽ là value - value ....
+     *  Trong trường hợp bạn muốn cấu hình message thì bạn có thể truyền vào 1 object như sau
+     *  {"Giá trị 1": GT1, "Giá trị 2": GT2,}
+     * 
      * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
-     * @param {Object} params là 1 object chứa các tùy chọn kèm theo khi gửi request
-     * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties. Các trường phụ này sẽ lưu vào thẻ selectEeceive
-     * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
+     * @param {callback} getParams là 1 callback dùng để lấy các điều kiện phụ trước khi gửi dữ liệu
+     * VD:
+     * const getParamsFactoryAdd = () => {
+            let factory_id = domFormAdd.querySelector("#factory_id");
+            return { factory_id: factory_id.value.trim() };
+        }
+        // thực hiện vệc lắng nghe sự kiện change của resources_type gọi api và đổ ra dữ liệu
+        formAdd.select.eventListenerChange("#resources_type", "#resource_id", "/api/vat-tu", "resources_type_id", label, "Chọn vật tư", getParamsFactoryAdd);
+     * {Object} params là 1 object chứa các tùy chọn kèm theo khi gửi request
+     * {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties. Các trường phụ này sẽ lưu vào thẻ selectEeceive
+     * {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
      */
-    eventListenerChange(selectChange, selectReceive, api, key, label, labelDefault) {
+    eventListenerChange(selectChange, selectReceive, api, key, label, labelDefault, getParams = null) {
         let choiceSelectReceive = this.dataChoice[selectReceive];
         if (!check(choiceSelectReceive, selectReceive, "choice")) return;
 
         this.event.change(selectChange, async (e) => {
+            this.request.params = {};
             let value = e.target.value;
             choiceSelectReceive.clearStore();
-            choiceSelectReceive.handleLoadingState(true);
-            this.params = { [key]: value, ...this.params };
+            choiceSelectReceive._handleLoadingState(true);
+            // Gọi getParams ở đây
+            let getParam = getParams !== null ? getParams() : {};
+            this.request.params = { [key]: value, ...this.params, ...getParam };
 
             let res = await this.request.getData(api);
             let dataChoice = this.processApiData(res, label, labelDefault);
             dataChoice.unshift({ value: "", label: labelDefault });
 
             choiceSelectReceive.setChoices(dataChoice, "value", "label", true);
-            choiceSelectReceive.handleLoadingState(false);
+            choiceSelectReceive._handleLoadingState(false);
         });
     }
 
@@ -599,12 +636,24 @@ class SelectHelpers {
      * @param {string} select ID, Class của thẻ được chọn
      * @param {string} api api nhận lấy ra dữ liệu
      * @param {string} key nhận vào param của api,
-     * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option
-     * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
+     * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option.
+     *  Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng lúc này label của bạn sẽ là value - value ....
+     *  Trong trường hợp bạn muốn cấu hình message thì bạn có thể truyền vào 1 object như sau
+     *  {"Giá trị 1": GT1, "Giá trị 2": GT2,}
      * @param {string} params là 1 object chứa các tùy chọn kèm theo khi gửi request
-     * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
+     * @param {callback} getParams là 1 callback dùng để lấy các điều kiện phụ trước khi gửi dữ liệu
+     * VD:
+     * const getParams = () => {
+            let params = {};
+            let resources_type = domFormAdd.querySelector("#resources_type");
+            params.resources_type_id = resources_type.value.trim();
+            return params;
+        }
+        formAdd.select.selectMore("#resource_id", "/api/vat-tu", "searCodeAndName", label, {} ,getParams);
+     * customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
+     * value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
      */
-    async selectMore(select, api, key, label, params = {}) {
+    async selectMore(select, api, key, label, params = {}, getParams = null) {
         let myTimeOut = null;
         let selectDom = document.querySelector(select);
         let choiceSelect = this.dataChoice[select];
@@ -613,30 +662,36 @@ class SelectHelpers {
         // Lắng nghe sự kiện tìm kiếm
         this.event.search(select, async (e) => {
             let query = e.detail.value.trim();
+            this.request.params = {};
             clearTimeout(myTimeOut);
             myTimeOut = setTimeout(async () => {
                 choiceSelect.setChoiceByValue("");
-                choiceSelect.handleLoadingState();
+                choiceSelect._handleLoadingState();
                 try {
-                    this.params = { [key]: query, ...params };
+                    // Gọi getParams ở đây
+                    let getParam = getParams !== null ? getParams() : {};
+                    this.request.params = { [key]: query, ...getParam, ...params };
                     let res = await this.request.getData(api);
                     let dataChoice = this.processApiData(res, label, "");
 
                     choiceSelect.setChoices(dataChoice, "value", "label", true); // Đổ dữ liệu mới vào select
-                    choiceSelect.handleLoadingState(false); // Tắt trạng thái loading
+                    choiceSelect._handleLoadingState(false); // Tắt trạng thái loading
                     choiceSelect.input.element.focus(); // Trả lại focus cho ô input của Choices
                 } catch (error) {
                     console.error("There was an error!", error);
-                    choiceSelect.handleLoadingState(false); // Tắt trạng thái loading ngay cả khi có lỗi
+                    choiceSelect._handleLoadingState(false); // Tắt trạng thái loading ngay cả khi có lỗi
                 }
             }, 500);
-        })
+        });
     }
 
     /**Đổ dữ liệu vào thẻ select choices thông qua api
      * @param {string} select ID của thẻ được chọn
      * @param {string} api api nhận lấy ra dữ liệu
-     * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option
+     * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option.
+     *  Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng lúc này label của bạn sẽ là value - value ....
+     *  Trong trường hợp bạn muốn cấu hình message thì bạn có thể truyền vào 1 object như sau
+     *  {"Giá trị 1": GT1, "Giá trị 2": GT2,}
      * @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
      * @param {Array} customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
      * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
@@ -649,7 +704,7 @@ class SelectHelpers {
             console.error("Không có đối tượng choices này: " + select);
             return;
         }
-        choiceSelect.handleLoadingState(true);
+        choiceSelect._handleLoadingState(true);
         let res = await this.request.getData(api);
         if (res.status === 200) {
             let dataChoice = this.processApiData(res, label, labelDefault);
@@ -658,7 +713,7 @@ class SelectHelpers {
             // trả dữ liệu về thẻ select
             choiceSelect.setChoices(dataChoice, "value", "label", true);
         }
-        choiceSelect.handleLoadingState(false);
+        choiceSelect._handleLoadingState(false);
     }
 }
 
@@ -701,7 +756,7 @@ class ResetHelpers {
         this.notRest = [];
         this.resetArray = [];
 
-        this.elements = this.form.elements;
+        this.elements = this.form.form.elements;
     }
     reset(item) {
         // kiểm tra đối tượng choice
@@ -726,7 +781,7 @@ class ResetHelpers {
             if (this.notRest.includes(item.name)) continue;
             this.reset(item);
         }
-        clearAllClassValidateHelpers(this.form);
+        clearAllClassValidateHelpers(this.form.form);
     }
     resetInArray() {
         // Lấy tất cả các phần tử trong form
@@ -734,12 +789,12 @@ class ResetHelpers {
             // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
             if (this.resetArray.includes(item.name)) this.reset();
         }
-        clearAllClassValidateHelpers(this.form);
+        clearAllClassValidateHelpers(this.form.form);
     }
 }
 
 class BaseFormHelpers extends RequestServerHelpers {
-    constructor(api, formSelector) {
+    constructor(api, formSelector, validations, modalSelector = "") {
         super(api);
         // lưu trữ khi khởi tạo form
         this.form = document.querySelector(formSelector);
@@ -748,12 +803,9 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.api = api;
         this.value = "id";
         this.method = "post";
-        this.modal = "";
 
-        this.validations = "";
         this.layout = "";
         this.method = "";
-        this.modal = "";
         this.debug = "";
         this.param = {};
         this.priceFormat = [];
@@ -764,6 +816,7 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.responseHandler = false;
         this.resetStatus = true;
         this.modalStatus = true;
+        this.statusSubmit = true;
 
         this.choice = new ChoiceHelpers(this.form);
         // mặc định khởi tạo choice
@@ -772,8 +825,8 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.select = new SelectHelpers(this);
 
         this.event = new EventHelpers(this.form);
-        this.validate = new ValidateHelpers(this.form, this.validations);
-        this.modal = this.modal !== "" ? new ModalHelpers(this, modal, this.api) : "";
+        this.validate = new ValidateHelpers(this.form, validations);
+        this.modal = modalSelector !== "" ? new ModalHelpers(this, modalSelector, this.api) : "";
         this.reset = new ResetHelpers(this);
         this.file = new FileHelpers();
         this.url = new URLHelpers();
@@ -897,8 +950,6 @@ class BaseFormHelpers extends RequestServerHelpers {
 class FormHelpers extends BaseFormHelpers {
     /**
      * @param {string} formSelector Nhận vào id class của 1 form cần khởi tạo
-     * @param {boolean} [startHandleFormSubmit=false] Xác định xem có tự động khởi tạo submit hay không 
-     * @param {Object} layout nhận vào đối tượng layout được khởi tạo
      * @param {Array} validations nhận vào mảng các trường cần kiểm tra, ví dụ:
      * const validations = [
      *  {name: "tên thẻ", condition: value => điều kiện, message: "thông báo người dùng"},
@@ -909,17 +960,18 @@ class FormHelpers extends BaseFormHelpers {
      * ];
      * @param {string} api đường dẫn API
      * @param {string} method HTTP method (GET, POST, v.v.)
+     * @param {Object} layout nhận vào đối tượng layout được khởi tạo
      * @param {string} modal ID modal
      * @param {boolean} [debug=false] Bật chế độ debug để kiểm tra response
+     * {boolean} [startHandleFormSubmit=false] Xác định xem có tự động khởi tạo submit hay không
      */
     constructor(formSelector, validations, api, method, layout, modal, debug = false) {
-        super(api, formSelector); // Gọi hàm khởi tạo của lớp cha
+        super(api, formSelector, validations, modal); // Gọi hàm khởi tạo của lớp cha
 
-        this.validations = validations;
         this.layout = layout;
         this.method = method;
-        this.modal = modal;
         this.debug = debug;
+        this.callback = null;
 
         this.startHandleFormSubmit = true;
 
@@ -953,7 +1005,7 @@ class FormHelpers extends BaseFormHelpers {
             }
 
             if (this.handleResponse(res)) {
-                showMessageMD(res.data.messageSuccess);
+                showMessageMD(res.data[messageSussces]);
                 this.finalizeForm(res);
                 return { status: true, data: res.data.data };
             }
@@ -969,6 +1021,7 @@ class FormHelpers extends BaseFormHelpers {
      * Lắng nghe sự kiện submit của form
      */
     handleFormSubmit() {
+        if(this.statusSubmit === false) return;
         this.form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
@@ -977,6 +1030,11 @@ class FormHelpers extends BaseFormHelpers {
             btnLoading(submitButton, true);
 
             const response = await this.submitForm();
+
+            // thực hiện công việc sau khi submit
+            if (typeof this.callback === "function") {
+                this.callback(response);
+            }
             btnLoading(submitButton, false, submitButtonText);
 
             if (response && response.status) {
@@ -992,13 +1050,11 @@ class FormHelpers extends BaseFormHelpers {
 /**class thao tác với form chứa tabel. Tức là khi bạn ấn submit form mà chưa muốn gọi api giửi đi mà muốn hiển thị lại giao diện cho ngừơi dùng xem*/
 class FormTableHelpers extends BaseFormHelpers {
     constructor(formSelector, validations, api, layout, template, modal, debug = false) {
-        super(api, formSelector);
+        super(api, formSelector, validations, modal);
 
         this.debug = debug;
-        this.validations = validations;
         this.layout = layout;
         this.template = template;
-        this.modal = modal;
 
         this.dataTotal = [];
         this.tbody = "#table-body";
@@ -1165,7 +1221,7 @@ class FormTableHelpers extends BaseFormHelpers {
                 console.error(`Choice instance for #${id} is not initialized.`);
             }
         } else {
-            item.value = this.priceFormat.includes(item.name) ? numberFormat(value) : value;
+            item.value = this.priceFormat.includes(item.name) ? numberFormatHelpers(value) : value;
         }
     }
 }
@@ -1233,8 +1289,8 @@ class FormFilterHelpers extends BaseFormHelpers {
                 this.toggleLoading(submitButton, true);
                 let data = this.getFormData();
                 let keysToKeep = ["page", "show_all"];
-                this.removeParamsExcept(keysToKeep);  // Xóa các tham số không cần thiết
-                this.addParamsToURL(data); // Đưa các param lên URL
+                this.url.removeParamsExcept(keysToKeep);  // Xóa các tham số không cần thiết
+                this.url.addParamsToURL(data); // Đưa các param lên URL
 
                 this.layout.type = "search"; // Gán kiểu tìm kiếm cho layout
                 await this.layout.dataUI(); // Gọi API và cập nhật giao diện

@@ -95,4 +95,24 @@ elementShowError.forEach((ele) => {
 });
 }
 
-export {formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers};
+function numberFormatHelpers( numberString, max = 0, groupSeparator = ",", decimalSeparator = "."
+) {
+  const number = parseFloat(numberString);
+  if (isNaN(number)) {
+      throw new Error("Invalid number string");
+  }
+  const options = {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: max,
+      useGrouping: true,
+  };
+  const formattedNumber = number.toLocaleString("en-US", options);
+
+  const customFormattedNumber = formattedNumber
+      .replace(/,/g, groupSeparator)
+      .replace(/\./g, decimalSeparator);
+
+  return customFormattedNumber;
+}
+
+export {formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers};
