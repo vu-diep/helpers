@@ -1,5 +1,5 @@
-import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core";
-import { formatDataResponse } from "./coreFunctions";
+import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core.js";
+import { formatDataResponse, check  } from "./coreFunctions.js";
 
 /**Class làm việc với modal */
 class ModalHelpers extends RequestServerHelpers {
@@ -13,6 +13,8 @@ class ModalHelpers extends RequestServerHelpers {
         this.form = form;
         this.api = api;
         this.modalSelector = modalSelector;
+        // lấy ra dữ liệu choices đã được khởi tạo
+        this.dataChoice = this.form.choice.choice;
         this.priceFormat = [];
         this.dateFormat = [];
         this.modal = null;
@@ -165,7 +167,7 @@ class ModalHelpers extends RequestServerHelpers {
                 let value = data[name];
                 if (item.hasAttribute("data-choice")) {
                     let id = item.getAttribute("id");
-                    let choiceInstance = this.form.choice[`#${id}`];
+                    let choiceInstance = this.dataChoice[`#${id}`];
                     if (choiceInstance) {
                         choiceInstance.setChoiceByValue(String(value));
                     } else {
@@ -382,8 +384,10 @@ class SelectHelpers {
         this.params = {};
         this.value = "id";
         this.customProperties = [];
+        // lấy ra dữ liệu choices đã được khởi tạo
+        this.dataChoice = this.form.choice.choice;
 
-        this.event = new EventHelpers(this.form);
+        this.event = new EventHelpers(this.form.form);
         this.request = new RequestServerHelpers();
     }
 
@@ -433,7 +437,7 @@ class SelectHelpers {
      * @param {string} value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
      */
     eventListenerChange(selectChange, selectReceive, api, key, label, labelDefault) {
-        let choiceSelectReceive = this.form.choice[selectReceive];
+        let choiceSelectReceive = this.dataChoice[selectReceive];
         if (!check(choiceSelectReceive, selectReceive, "choice")) return;
 
         this.event.change(selectChange, async (e) => {
@@ -553,7 +557,7 @@ class SelectHelpers {
                     if (dom.getAttribute("data-choice")) {
                         let id = dom.getAttribute("id");
                         // Tìm đối tượng Choices
-                        let choiceInstance = this.form.choice[`#${id}`];
+                        let choiceInstance = this.dataChoice[`#${id}`];
                         if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
                     } else {
                         dom.value = "";
@@ -564,7 +568,7 @@ class SelectHelpers {
                     if (domReceive.getAttribute("data-choice")) {
                         let id = domReceive.getAttribute("id");
                         // Tìm đối tượng Choices
-                        let choiceInstance = this.form.choice[`#${id}`];
+                        let choiceInstance = this.dataChoice[`#${id}`];
                         if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
                     } else {
                         domReceive.value = ""; // Xóa giá trị của input và textarea
@@ -603,7 +607,7 @@ class SelectHelpers {
     async selectMore(select, api, key, label, params = {}) {
         let myTimeOut = null;
         let selectDom = document.querySelector(select);
-        let choiceSelect = this.form.choice[select];
+        let choiceSelect = this.dataChoice[select];
         if (!check(selectDom, select)) return;
         if (!check(choiceSelect, select, "choice")) return;
         // Lắng nghe sự kiện tìm kiếm
@@ -639,12 +643,12 @@ class SelectHelpers {
      */
     async selectData(select, api, label, labelDefault) {
         // Tìm đối tượng Choices cho selectChange và select
-        let choiceSelect = this.form.choice[select];
+        let choiceSelect = this.dataChoice[select];
         // Kiểm tra nếu đối tượng Choices tồn tại
         if (!choiceSelect) {
             console.error("Không có đối tượng choices này: " + select);
             return;
-        } 
+        }
         choiceSelect.handleLoadingState(true);
         let res = await this.request.getData(api);
         if (res.status === 200) {
@@ -688,10 +692,12 @@ class ChoiceHelpers {
 /**class có tác dụng reset 1 form nào đó
   * @param {string} form Nhận vào 1 form đã được khởi tạo
 */
-class ResetHelpers extends ChoiceHelpers {
+class ResetHelpers {
     constructor(form) {
         this.form = form;
         // lưu trữ khi khởi tạo choice
+        // lấy ra dữ liệu choices đã được khởi tạo
+        this.dataChoice = this.form.choice.choice;
         this.notRest = [];
         this.resetArray = [];
 
@@ -702,7 +708,7 @@ class ResetHelpers extends ChoiceHelpers {
         if (item.hasAttribute("data-choice")) {
             let id = item.getAttribute("id");
             // Tìm đối tượng Choices
-            let choiceInstance = this.choice[`#${id}`];
+            let choiceInstance = this.dataChoice[`#${id}`];
             if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
         } else {
             if (item.tagName === "INPUT" || item.tagName === "TEXTAREA")
@@ -759,18 +765,18 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.resetStatus = true;
         this.modalStatus = true;
 
+        this.choice = new ChoiceHelpers(this.form);
+        // mặc định khởi tạo choice
+        this.choice.startChoice();
+
+        this.select = new SelectHelpers(this);
 
         this.event = new EventHelpers(this.form);
         this.validate = new ValidateHelpers(this.form, this.validations);
         this.modal = this.modal !== "" ? new ModalHelpers(this, modal, this.api) : "";
-        this.select = new SelectHelpers(this.form);
-        this.choice = new ChoiceHelpers(this.form);
-        this.reset = new ResetHelpers(this.form);
+        this.reset = new ResetHelpers(this);
         this.file = new FileHelpers();
         this.url = new URLHelpers();
-
-        // mặc định khởi tạo choice
-        this.choice.startChoice();
 
     }
 
