@@ -1,5 +1,5 @@
 import { checkOutput, removeCommasHelpers } from "./common.js";
-import { formatApiUrl,check, numberFormatHelpers, convertDateFormatHelpers, formatAPI,  formatDataResponse, clearAllClassValidateHelpers } from "./coreFunctions.js";
+import { formatApiUrl, check, numberFormatHelpers, convertDateFormatHelpers, formatAPI, formatDataResponse, clearAllClassValidateHelpers, checkOutput } from "./coreFunctions.js";
 // xác định message trả về
 const messageError = "error";
 const messageSussces = "success";
@@ -314,47 +314,65 @@ class ConfirmHelpers {
 
 // Class thao tác với việc xử lý file
 class FileHelpers {
-  /**Hàm có tác dụng xuất file excel
-   * @param api api xuất file
-   * @param name tên file file
-   * @param dom nhận id class để lắng nghe sự kiện click
-   */
-  exportExcel(api, name, dom = "") {
-    const downloadFile = async (api, name) => {
-      await axios
-        .get(api, { responseType: "blob" })
-        .then((res) => {
-          const url = window.URL.createObjectURL(new Blob([res.data]));
-          const link = document.createElement("a");
-          link.href = url;
-          link.setAttribute("download", `${name}.xlsx`); // Tên file muốn tải xuống
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-        })
-        .catch((err) => {
-          console.log(err);
-          showErrorMD(`Không đủ dữ liệu để xuất file ${name}.xlsx`);
-        });
+
+  async downloadFile(api, name, params, getParams, fileType = "xlsx") {
+    const mergedParams = { ...getParams?.() || {}, ...params };
+    try {
+      const res = await axios.get(api, { responseType: "blob", params: mergedParams });
+      const url = window.URL.createObjectURL(new Blob([res.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `${name}.${fileType}`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (err) {
+      console.error(err);
+      showErrorMD(`Không đủ dữ liệu để xuất file ${name}.${fileType}`);
+    }
+  }
+
+  exportFile(dom = "", api, name, params = {}, getParams = null, fileType = "xlsx") {
+    const exportElement = dom ? document.querySelector(dom) : null;
+    const handleClick = async () => {
+      const finalParams = { ...this.getParams(), ...params };
+      if (finalParams.page) {
+        api = formatApiUrl(api, finalParams);
+      }
+      if (exportElement) {
+        const originalText = exportElement.innerHTML.trim();
+        btnLoading(exportElement, true);
+        await this.downloadFile(api, name, finalParams, getParams, fileType);
+        btnLoading(exportElement, false, originalText);
+      } else {
+        await this.downloadFile(api, name, finalParams, getParams, fileType);
+      }
     };
 
-    if (dom !== "") {
-      let exportExcel = document.querySelector(dom);
-      if (!check(exportExcel, dom)) return;
-      let textContent = exportExcel.innerHTML.trim();
-
-      exportExcel.addEventListener("click", async (e) => {
-        let params = this.getParams();
-        if (Object.keys(params).length > 0 && params.page) {
-          api = formatApiUrl(api, params);
-        }
-        btnLoading(exportExcel, true);
-        await downloadFile(api, name);
-        btnLoading(exportExcel, false, textContent);
-      });
+    if (exportElement) {
+      if (!check(exportElement, dom)) return;
+      exportElement.addEventListener("click", handleClick);
     } else {
-      downloadFile(api, name);
+      handleClick(); // Không có trình xử lý sự kiện, chỉ cần tải xuống trực tiếp
     }
+  }
+
+  /**Hàm có tác dụng xuất file excel
+ * @param api api xuất file
+ * @param name tên file file
+ * @param dom nhận id class để lắng nghe sự kiện click
+ */
+  exportExcel(api, name, dom = "", params = {}, getParams = null) {
+    this.exportFile(dom, api, name, params, getParams, "xlsx");
+  }
+
+  /**Hàm có tác dụng xuất file pdf
+ * @param api api xuất file
+ * @param name tên file file
+ * @param dom nhận id class để lắng nghe sự kiện click
+ */
+  exportPDF(api, name, dom = "", params = {}, getParams = null) {
+    this.exportFile(dom, api, name, params, getParams, "pdf");
   }
 
 }
@@ -567,9 +585,7 @@ class LayoutHelpers extends URLHelpers {
         if (this.subHtml.length > 0) {
           this.subHtml.forEach((sub) => {
             if (sub.column.includes("*")) {
-              const [col1, col2] = sub.column
-                .split("*")
-                .map((col) => col.trim());
+              const [col1, col2] = sub.column.split("*").map((col) => col.trim());
               if (item[col1] !== undefined && item[col2] !== undefined) {
                 totals[sub.column] += Number(item[col1]) * Number(item[col2]);
               }
@@ -582,15 +598,15 @@ class LayoutHelpers extends URLHelpers {
 
       // kiểm tra xem subHtml có rỗng hay không
       if (this.subHtml.length > 0) {
+        let footerRow = `<tr>`; // Tạo một hàng (tr) duy nhất
+
         this.subHtml.forEach((item) => {
-          let footerRow = `<tr>`;
-          footerRow += item.html.replace(
-            "{total}",
-            numberFormatHelpers(checkOutput(totals[item.column], 0))
-          );
-          footerRow += `</tr>`;
-          html += footerRow;
+          // Chèn tất cả các cột (td) vào cùng một hàng
+          footerRow += item.html.replace("{total}", numberFormatHelpers(checkOutput(totals[item.column], 0)));
         });
+
+        footerRow += `</tr>`; // Kết thúc hàng
+        html += footerRow; // Gộp tất cả các cột vào trong một hàng
       }
     }
     // kiểm tra xem có thực hiện phân trang hay không

@@ -95,8 +95,7 @@ elementShowError.forEach((ele) => {
 });
 }
 
-function numberFormatHelpers( numberString, max = 0, groupSeparator = ",", decimalSeparator = "."
-) {
+function numberFormatHelpers( numberString, max = 0, groupSeparator = ",", decimalSeparator = ".") {
   const number = parseFloat(numberString);
   if (isNaN(number)) {
       throw new Error("Invalid number string");

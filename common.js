@@ -126,4 +126,19 @@ async function codeAutoGenerationHelpers(baseCode = "PN-SX") {
   }
 }
 
-export {removeCommasHelpers, codeAutoGenerationHelpers, generateCode, checkOutput, codeGenerationHelpers, priceToText, formatNumberAndCheckEmpty, roundToDecimalHelpers}
+/**Hàm có tác dụng lấy ngày bắt đầu và kết thúc của tháng hiện tại trong phạm vi 1 tháng*/
+function getDateRange() {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const formatDate = (date) => {
+      const day = String(date.getDate()).padStart(2, "0");
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const year = String(date.getFullYear());
+      return `${day}-${month}-${year}`;
+  };
+
+  return `${formatDate(startOfMonth)} đến ${formatDate(now)}`;
+}
+
+export {removeCommasHelpers, codeAutoGenerationHelpers, generateCode, checkOutput, codeGenerationHelpers, priceToText, formatNumberAndCheckEmpty, roundToDecimalHelpers, getDateRange}

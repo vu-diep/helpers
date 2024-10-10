@@ -734,13 +734,12 @@ class ChoiceHelpers {
         // Lấy tất cả các thẻ <select> bên trong form
         const selectElements = this.form.querySelectorAll("select");
         // Kiểm tra xem choiceArray có phải là một mảng và không rỗng
-        if (selectElements.length > 0)
-            selectElements.forEach((item) => {
-                // Khởi tạo Choices cho phần tử
-                const choiceInstance = new Choices(item, choiceOption);
-                // Lưu trữ thông tin về phần tử và đối tượng Choices
-                this.choice[`#${item.id}`] = choiceInstance;
-            });
+        if (selectElements.length > 0) selectElements.forEach((item) => {
+            // Khởi tạo Choices cho phần tử
+            const choiceInstance = new Choices(item, choiceOption);
+            // Lưu trữ thông tin về phần tử và đối tượng Choices
+            this.choice[`#${item.id}`] = choiceInstance;
+        });
     }
 }
 
@@ -1304,8 +1303,9 @@ class FormFilterHelpers extends BaseFormHelpers {
     /**
      * Hàm xóa lọc dữ liệu form
      * @param {string} deleteFilter ID hoặc class của nút xóa filter
+     * @param {callback} callback hàm thực hiện công việc nào đó sau khi xóa
      */
-    deleteFilterForm(deleteFilter = "#deleteFilter") {
+    deleteFilterForm(deleteFilter = "#deleteFilter", callback = null) {
         if (!this.validateLayout()) return;
 
         const buttonFilter = document.querySelector(deleteFilter);
@@ -1319,6 +1319,7 @@ class FormFilterHelpers extends BaseFormHelpers {
 
             let keysToKeep = ["page", "show_all"];
             this.url.removeParamsExcept(keysToKeep); // Xóa các param trừ những param cần giữ lại
+            if(callback !== null) callback();
             await this.layout.dataUI(); // Gọi API và cập nhật giao diện
 
             this.toggleLoading(buttonFilter, false, originalText);
