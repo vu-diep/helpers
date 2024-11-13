@@ -4,13 +4,13 @@ import { check, formatApiUrl, numberFormatHelpers } from "./coreFunctions.js";
 
 /**Class có tác dụng phân trang
  * @param {object} data object trả về từ backend có chứa phân trang
- * @param {function} getUI function gọi ra giao diện
+ * @param {function} renderUI function gọi ra giao diện
  * @param {string} pagination Id thẻ html nơi đổ dữ liệu phân trang
  */
 class Pagination extends URLHelpers {
-    constructor(data, getUI, pagination, api) {
+    constructor(data, renderUI, pagination, api) {
         super();
-        this.getUI = getUI;
+        this.renderUI = renderUI;
         this.api = api;
         this.pagination = document.querySelector(pagination);
         if (!check(pagination, this.pagination)) return;
@@ -41,7 +41,7 @@ class Pagination extends URLHelpers {
             this.addParamsToURL({ page: value });
         }
         btnLoading(page, true, page.textContent);
-        this.getData();
+        this.renderUI();
         btnLoading(page, false, page.textContent);
     }
     setPaginations(data) {
@@ -137,8 +137,9 @@ class Pagination extends URLHelpers {
         });
     }
 }
+
 class BaseLayout extends URLHelpers {
-    constructor(api, template, total) {
+    constructor(api, template, total, defaultParams) {
         super();
         this.api = api;
         if (!this.api) {
@@ -158,21 +159,20 @@ class BaseLayout extends URLHelpers {
         this.request = new RequestServerHelpers(this.api);
         this.subHtml = [];
         this.colspan = 14;
-        this.defaultParams = "";
+        this.defaultParams = defaultParams;
 
         this.setColspan();
-        this.getDefaultParam();
+        if (this.defaultParams !== "") this.getDefaultParam();
     }
 
     /**Hàm có tác dụng lấy ra params mặc định */
     getDefaultParam() {
-        if (this.defaultParams !== "") {
-            if (this.defaultParams.indexOf("function")) {
-                this.defaultParams = this.defaultParams();
-            }
-            console.log(this.defaultParams);
-            this.addParamsToURL(this.defaultParams);
+        let defaultParams = this.defaultParams;
+        if (typeof this.defaultParams == "function") {
+            defaultParams = this.defaultParams();
         }
+        this.addParamsToURL(defaultParams);
+        return defaultParams;
     }
 
     /**Hàm có tác dụng đếm số lượng của thẻ th rồi lưu vào colspan */
@@ -196,6 +196,26 @@ class BaseLayout extends URLHelpers {
             </tr>
         `;
         this.tbody.innerHTML = loadding;
+    }
+    // Hàm có tác dụng sét data layble cho thẻ td dựa theo thẻ th mục đích khi về màn hình mobile có thể hiển thị được
+    setLabel() {
+        let tableElement = this.tbody.closest('table');
+        if (tableElement && tableElement.classList.contains('table-config')) {
+            let headers = tableElement.querySelectorAll('thead th');
+            let rows = tableElement.querySelectorAll('tbody tr');
+
+            rows.forEach(function (row) {
+                if (!row.classList.contains('none-data')) {
+                    let cells = row.querySelectorAll('td');
+
+                    cells.forEach(function (cell, index) {
+                        let label = headers[index]?.textContent.trim();
+                        label = label?.toUpperCase();
+                        cell.setAttribute('data-label', label);
+                    });
+                }
+            });
+        }
     }
 }
 class LayoutHelpers extends BaseLayout {
@@ -226,13 +246,14 @@ class LayoutHelpers extends BaseLayout {
   
       ];
        */
-    constructor(api, template, total = true) {
-        super(api, template, total);
-        this.dataUI();
+    constructor(api, template, total = true, defaultParams = "") {
+        super(api, template, total, defaultParams);
+        this.renderUI();
     }
 
-    /**Hàm có tác dụng đổ dữ liệu ra giao diện */
-    async dataUI() {
+    /**Hàm có tác dụng gọi api
+     */
+    async renderUI() {
         this.setLoading();
         let params = this.getParams();
         if (Object.keys(params).length > 0) {
@@ -241,20 +262,14 @@ class LayoutHelpers extends BaseLayout {
         } else {
             this.api = this.removeAllParams(this.api);
         }
-        let data = await this.getData();
-        this.insertHTMLInTable(data, data.data.length > 0 ? 1 : 0);
-    }
-
-    /**Hàm có tác dụng gọi api
-     */
-    async getData() {
-        // Nếu this.api không phải là mảng
         const res = await this.request.getData(this.api);
         // Cập nhật nội dung cho DOM nếu this.total là một mảng
         if (Array.isArray(this.total)) {
             this.total.forEach((item) => {
                 const element = document.getElementById(item.dom);
-                if (element) {
+                if (!element) {
+                    console.error(`Không tìm thấy dom với id ${item.dom}`);
+                }else{
                     let value = res[item.key];
                     if (item.format && item.format === "date") {
                         value = dateTimeFormat(value);
@@ -269,21 +284,20 @@ class LayoutHelpers extends BaseLayout {
             const totalElement = document.getElementById("total");
             if (!check(totalElement, "total")) return;
 
-            totalElement.innerText = `${res.total}`;
+            totalElement.innerText = res.total;
         }
 
-        // Trả về dữ liệu
-        return res;
+        this.insertHTMLInTable(res);
     }
 
     /**Hàm có tác dụng đổ ra dữ liệu
      * @param data dữ liệu cần hiển thị
      * @param {boolean}  status phân biệt giữa hiển thị không có dữ liệu và có dữ liệu
      */
-    insertHTMLInTable(data, stauts = 0) {
-
+    insertHTMLInTable(res) {
+        var data = res.data;
         let html = "";
-        if (stauts === 0) {
+        if (Number(res.stauts) === 404) {
             html += `
                   <tr class="loading-data">
                       <td class="text-center" colspan="${this.colspan}">
@@ -296,7 +310,6 @@ class LayoutHelpers extends BaseLayout {
                 console.error("api đang bị lỗi hoặc không sử dụng class phân trang");
                 return;
             }
-            let index = data.from;
             let totals = {};
 
             if (this.subHtml.length > 0) {
@@ -305,11 +318,13 @@ class LayoutHelpers extends BaseLayout {
                     totals[sub.column] = 0;
                 });
             }
+            // Chuyển đổi 'data' thành một mảng các object
+            data = Object.values(data);
 
-            data.data.forEach((item) => {
+            data.forEach((item, index) => {
                 let row = `<tr>`;
                 if (this.statusHeader) {
-                    row += `<td class="phase align-middle white-space-nowrap text-center">${index++}</td>`;
+                    row += `<td class="phase align-middle white-space-nowrap text-center">${index + 1}</td>`;
                 }
                 row += this.template(item); // Truyền 'item' vào hàm htmlTemplates
                 row += `</tr>`;
@@ -344,29 +359,12 @@ class LayoutHelpers extends BaseLayout {
         }
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
-            new Pagination(data, this.dataUI.bind(this), this.pagination, this.api);
+            new Pagination(res, this.renderUI.bind(this), this.pagination, this.api);
         }
         this.tbody.innerHTML = html;
         this.setLabel();
     }
-    setLabel() {
-        let tableElement = this.tbody.closest('table');
-        if (tableElement) {
-            tableElement.classList.add('table-config');
-            let headers = tableElement.querySelectorAll('thead th');
-            let rows = tableElement.querySelectorAll('tbody tr');
-            rows.forEach(function (row) {
-                if (!row.classList.contains('none-data')) {
-                    let cells = row.querySelectorAll('td');
-                    cells.forEach(function (cell, index) {
-                        let label = headers[index]?.textContent.trim();
-                        label = label?.toUpperCase();
-                        cell.setAttribute('data-label', label);
-                    });
-                }
-            });
-        }
-    }
+
     /**hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công việc bất kỳ. Thường dùng cho edit hoặc delete 
      * @param {string} className của thẻ cần lắng nghe sự kiện click
      * @param {callback} callback(id, e) là một hàm bất kỳ có tác dụng thực hiện sau khi click

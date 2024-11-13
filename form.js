@@ -231,9 +231,13 @@ class ValidateHelpers {
         // Thu thập dữ liệu từ các trường
         for (let key in dom) {
             let item = dom[key];
-            data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
+            let type = item.getAttribute("type");
+            if(type === "file"){
+                data[key] = item.files[0];
+            }else{
+                data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
+            }
         }
-
         return data;
     }
 
@@ -278,7 +282,8 @@ class ValidateHelpers {
         elements.forEach((item) => {
             let name = item.getAttribute("name");
             if (name) {
-                dom[name] = item;
+                let value =item;
+                dom[name] = value;
                 if (textSelect && item.tagName.toLowerCase() === "select") {
                     dom[`text${name}`] = item.textContent;
                 }
@@ -319,6 +324,7 @@ class ValidateHelpers {
                 if (!this.checkMultipleFields(fieldValues, name, condition, dom, message, defaultName)) return false;
             } else {
                 let field = dom[name];
+
                 if (field && !this.checkSingleField(field, condition, message)) return false;
             }
         }
@@ -733,7 +739,7 @@ class ChoiceHelpers {
         // Kiểm tra xem choiceArray có phải là một mảng và không rỗng
         const selectElementsLength = selectElements.length;
         if (selectElementsLength > 0) {
-            for(let i = 0; i < selectElementsLength; i++) {
+            for (let i = 0; i < selectElementsLength; i++) {
                 let item = selectElements[i];
                 if (!item.id) {
                     console.error("Thẻ select bắt buộc phải có id mới khởi tạo được choices !", item);
@@ -956,6 +962,20 @@ class BaseFormHelpers extends RequestServerHelpers {
             }
         }
     }
+
+    /**Hàm có tác dụng add dữ liệu sang dạng FromData 
+     * @param {array} data nhận vào 1 mảng chứa các object dữ l
+    */
+    addFromData(data) {
+        const formData = new FormData();
+        // Duyệt qua các thuộc tính của data và thêm vào FormData
+        for (let key in data) {
+            if (data.hasOwnProperty(key)) {
+                formData.append(key, data[key]);
+            }
+        }
+        return formData;
+    }
 }
 
 //class làm việc với form
@@ -994,14 +1014,17 @@ class FormHelpers extends BaseFormHelpers {
      * Gửi thông tin form
      */
     async submitForm() {
+
         let data = this.validate.validateForm();
         if (!data) return false;
 
         if (Object.keys(this.subdata).length) {
             data = { ...data, ...this.subdata };
         }
-
         this.formatData(data);
+        if (this.headers["Content-Type"] === "multipart/form-data") {
+            data = this.addFromData(data);
+        }
 
         let response;
         // nếu là  post (không phân biệt chữ hoa/thường)
@@ -1040,12 +1063,10 @@ class FormHelpers extends BaseFormHelpers {
             btnLoading(submitButton, false, submitButtonText);
 
             if (response && response.status) {
-                await this.layout.dataUI();
+                await this.layout.renderUI();
             }
         });
     }
-
-
 }
 
 
@@ -1190,7 +1211,7 @@ class FormTableHelpers extends BaseFormHelpers {
         if (this.resetForm) this.resetFormInputs();
         if (this.resetTable) this.clearTable();
         if (this.statusModal) this.modal.hideModal();
-        if (this.statusLayout) this.layout.dataUI();
+        if (this.statusLayout) this.layout.renderUI();
         this.dataTotal = [];
         this.index = 0;
         this.exportDataIfNecessary(responseData);
@@ -1295,7 +1316,7 @@ class FormFilterHelpers extends BaseFormHelpers {
                 this.url.addParamsToURL(data); // Đưa các param lên URL
 
                 this.layout.type = "search"; // Gán kiểu tìm kiếm cho layout
-                await this.layout.dataUI(); // Gọi API và cập nhật giao diện
+                await this.layout.renderUI(); // Gọi API và cập nhật giao diện
 
                 this.toggleLoading(submitButton, false, submitButtonTextContent);
             });
@@ -1325,7 +1346,11 @@ class FormFilterHelpers extends BaseFormHelpers {
             let keysToKeep = [...this.keysToKeep, ...paramsNotDelete];
             this.url.removeParamsExcept(keysToKeep); // Xóa các param trừ những param cần giữ lại
             if (callback !== null) callback();
-            await this.layout.dataUI(); // Gọi API và cập nhật giao diện
+            // thực hiện lấy ra params default
+            let dataParams = this.layout.getDefaultParam();
+            // đưa params default vào form
+            if (Object.keys(dataParams).length > 0) this.setFormData(dataParams);
+            await this.layout.renderUI(); // Gọi API và cập nhật giao diện
 
             this.toggleLoading(buttonFilter, false, originalText);
         });
@@ -1333,4 +1358,4 @@ class FormFilterHelpers extends BaseFormHelpers {
 }
 
 
-export { FormHelpers, FormTableHelpers, FormFilterHelpers }
+export { FormHelpers, FormTableHelpers, FormFilterHelpers, ModalHelpers, BaseFormHelpers, ResetHelpers, ChoiceHelpers, SelectHelpers, ValidateHelpers }
