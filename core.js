@@ -120,10 +120,10 @@ class EventHelpers {
   }
   // lắng nghe sự kiện submit
   submit(form, callback) {
-    this.addEvent(form, "submit", (e) => {
+    form.addEventListener("submit", (e) => {
       e.preventDefault();
       callback(e);
-    });
+    })
   }
   // lắng nghe sự kiện click
   click(dom, callback) {

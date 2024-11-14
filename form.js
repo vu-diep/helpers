@@ -210,10 +210,12 @@ class ValidateHelpers {
     /**
    * @param {object} form  nhận vào form cần validate
    * @param {object} validations  nhận vào các quy tắc cần validate
+   * @param {Boolen} statusFile Trạng thái của form khi phát hiện có trường file mặc định là không có file
      */
     constructor(form, validations) {
         this.form = form;
         this.validations = validations;
+        this.statusFile = true;
     }
 
     /**
@@ -232,9 +234,9 @@ class ValidateHelpers {
         for (let key in dom) {
             let item = dom[key];
             let type = item.getAttribute("type");
-            if(type === "file"){
+            if (type === "file") {
                 data[key] = item.files[0];
-            }else{
+            } else {
                 data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
             }
         }
@@ -282,7 +284,7 @@ class ValidateHelpers {
         elements.forEach((item) => {
             let name = item.getAttribute("name");
             if (name) {
-                let value =item;
+                let value = item;
                 dom[name] = value;
                 if (textSelect && item.tagName.toLowerCase() === "select") {
                     dom[`text${name}`] = item.textContent;
@@ -720,6 +722,66 @@ class SelectHelpers {
     }
 }
 
+/**Class có tác dụng khởi tạo daterangepicker */
+class DatePickerHelpers {
+    constructor(form) {
+
+        this.form = form;
+        // Lưu trữ các đối tượng daterangepicker đã khởi tạo
+        this.dataDate = {};
+        moment.locale('vi');
+        this.typeFormat = 'D [Tháng] M, YYYY';
+    }
+
+    // Hàm callback để thiết lập giá trị ngày cho input
+    cb(start, end, element) {
+        let cont = start.format(this.typeFormat) + ' - ' + end.format(this.typeFormat);
+        if (start.format(this.typeFormat) === end.format(this.typeFormat)) {
+            cont = start.format(this.typeFormat);
+        }
+        $(element).val(cont);
+    }
+
+    /**Hàm khởi tạo daterangepicker và lưu đối tượng vào dataDate tham khảo các sử dụng ở hàm initialize
+     * @param {string} selector class của thẻ input cần khởi tạo
+     * @param {date} start thời gian bắt đầu
+     * @param {object} [options] các cấu hình cho daterangepicker
+     */
+    initDatePicker(selector, start, options = {}) {
+        $(this.form).find(selector).each((index, input) => {
+            const $input = $(input);
+            $input.daterangepicker({
+                startDate: start,
+                singleDatePicker: options.singleDatePicker || false, // Chọn một ngày nếu có
+                maxDate: options.maxDate || null, // Giới hạn tối đa nếu có
+                minDate: options.minDate || null, // Giới hạn tối thiểu nếu có
+                locale: {
+                    format: this.typeFormat,
+                    applyLabel: "Áp dụng",
+                    cancelLabel: "Hủy",
+                    fromLabel: "Từ",
+                    toLabel: "Đến",
+                    customRangeLabel: "Tùy chỉnh",
+                    daysOfWeek: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
+                    monthNames: ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5",
+                        "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11",
+                        "Tháng 12"],
+                    firstDay: 1
+                }
+            });
+        })
+    }
+
+    // Phương thức khởi tạo các daterangepicker cần thiết
+    initialize() {
+        this.initDatePicker('input.start-date-picker-default-this-month', moment().startOf('month'), moment());
+        this.initDatePicker('input.start-date-picker', moment(), moment());
+        this.initDatePicker('input.start-date-picker-single', moment(), { singleDatePicker: true });
+        this.initDatePicker('input.start-date-picker-max-today', moment().subtract(7, 'days'), { maxDate: moment() });
+        this.initDatePicker('input.start-date-picker-min-today', moment(), { minDate: moment() });
+    }
+}
+
 /**class có tác dụng khởi tạo choice và thực hiện việc lưu trữ cac giá trị choice dã được khởi tạo 
   * @param {string} form Nhận vào 1 form đã được khởi tạo
 */
@@ -763,11 +825,13 @@ class ResetHelpers {
         // lưu trữ khi khởi tạo choice
         // lấy ra dữ liệu choices đã được khởi tạo
         this.dataChoice = this.form.choice.choice;
+        this.datePicker = this.form.datePicker;
         this.notRest = [];
         this.resetArray = [];
 
         this.elements = this.form.form.elements;
     }
+
     reset(item) {
         // kiểm tra đối tượng choice
         if (item.hasAttribute("data-choice")) {
@@ -785,8 +849,14 @@ class ResetHelpers {
    * @param {string} choiceArray là mộ mảng chứa id của 1 thẻ
    */
     resetForm() {
+        // cập nhật lại ngày tháng
+        this.datePicker.initialize();
         // Lấy tất cả các phần tử trong form
         for (let item of this.elements) {
+            const className = item.getAttribute('class');
+            // Không xóa trắng với tất cả phần tử có class bắt đầu với 'start-date-picker'
+            const checkDatePicker = className.split(" ").some(classItem => classItem.startsWith('start-date-picker'));
+            if (checkDatePicker) continue;
             // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
             if (this.notRest.includes(item.name)) continue;
             this.reset(item);
@@ -794,8 +864,14 @@ class ResetHelpers {
         clearAllClassValidateHelpers(this.form.form);
     }
     resetInArray() {
+        // cập nhật lại ngày tháng
+        this.datePicker.initialize();
         // Lấy tất cả các phần tử trong form
         for (let item of this.elements) {
+            const className = item.getAttribute('class');
+            // Không xóa trắng với tất cả phần tử có class bắt đầu với 'start-date-picker'
+            const checkDatePicker = className.split(" ").some(classItem => classItem.startsWith('start-date-picker'));
+            if (checkDatePicker) continue;
             // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
             if (this.resetArray.includes(item.name)) this.reset();
         }
@@ -808,14 +884,11 @@ class BaseFormHelpers extends RequestServerHelpers {
         super(api);
         // lưu trữ khi khởi tạo form
         this.form = document.querySelector(formSelector);
-        if (!check(this.form, formSelector)) return;
-
         this.api = api;
         this.value = "id";
         this.method = "post";
 
         this.layout = "";
-        this.method = "";
         this.debug = "";
         this.param = {};
         this.priceFormat = [];
@@ -831,6 +904,9 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.choice = new ChoiceHelpers(this.form);
         // mặc định khởi tạo choice
         this.choice.startChoice();
+        this.datePicker = new DatePickerHelpers(this.form);
+        // mặc định khởi tạo date picker
+        this.datePicker.initialize();
 
         this.select = new SelectHelpers(this);
 
@@ -976,6 +1052,27 @@ class BaseFormHelpers extends RequestServerHelpers {
         }
         return formData;
     }
+
+    /**Hàn có tác dụng gửi dữ liệu dựa trên method yêu cầu
+     * @param {array} data nhận vào 1 mảng chứa các object dữ l
+     * @param {string} method nhận vào method cần gửi
+     */
+    async sendFormData(data, method, debug) {
+        var response;
+        switch (method.toLowerCase()) {
+            case "post":
+                response = await this.postData(data, debug);
+                break;
+            case "post":
+                response = await this.putData(data, debug);
+                break;
+            default:
+                console.error("method không được hỗ trợ vui lòng chọn method khác: " + method);
+                response = false;
+                break;
+        }
+        return response;
+    }
 }
 
 //class làm việc với form
@@ -1026,17 +1123,8 @@ class FormHelpers extends BaseFormHelpers {
             data = this.addFromData(data);
         }
 
-        let response;
-        // nếu là  post (không phân biệt chữ hoa/thường)
-        if (this.method.toLowerCase() === 'post') {
-            response = await this.postData(data, this.debug);
-        } else if (this.method.toLowerCase() === 'put') {
-            response = await this.putData(data, this.debug);
-        } else {
-            console.error("Form chỉ chấp nhận phương thức post hoặc put không chấp nhận phương thức này: " + this.method);
-            return false;
-        }
-        if (this.handleResponse(response)) {
+        let response = this.sendFormData(data, this.method, this.debug)
+        if (response !== false && this.handleResponse(response)) {
             this.finalizeForm(response);
             return { status: true, data: response.data };
         }
@@ -1101,7 +1189,7 @@ class FormTableHelpers extends BaseFormHelpers {
     }
 
     handleFormSubmit() {
-        this.eventHelpers.submit(this.formSelector, (e) => {
+        this.event.submit(this.form, (e) => {
             const data = this.validate.validateForm(true);
             if (data !== false) {
                 data.id = this.generateUniqueId();
@@ -1143,7 +1231,6 @@ class FormTableHelpers extends BaseFormHelpers {
         const row = this.domTbody.querySelector(`tr[id="${id}"]`);
         if (row) {
             row.remove();
-            showMessageMD("Xóa thành công");
         }
     }
 
@@ -1154,7 +1241,7 @@ class FormTableHelpers extends BaseFormHelpers {
         const btnSendDataTextContent = btnSendData.textContent;
         btnLoading(btnSendData, true);
 
-        this.eventHelpers.click(this.btnSendData, async () => {
+        this.event.click(this.btnSendData, async () => {
             this.dataTotal = this.formInTable ? this.validate.validateRow(this.formInTable) : this.dataTotal;
 
             if (this.dataTotal && this.dataTotal.length > 0) {
@@ -1163,15 +1250,19 @@ class FormTableHelpers extends BaseFormHelpers {
                 }
 
                 this.formatDataBeforeSend();
-                const response = await this.sendRequest(this.dataTotal, this.debug, this.method);
+                const response = await this.sendFormData(this.dataTotal, this.method, this.debug);
 
                 if (this.responseHandler && response && this.responseHandler.status === response.status) {
                     await this.responseHandler.function();
                     this.updateTableData(response.data);
                 }
 
-                if (response && response.status >= 200 && response.status < 400) {
+                if (response && response.status == 200 && response.status < 400) {
+
                     this.handleSuccessfulResponse(response.data);
+                } else {
+                    this.showError(res);
+                    return false;
                 }
             }
         });
@@ -1358,4 +1449,4 @@ class FormFilterHelpers extends BaseFormHelpers {
 }
 
 
-export { FormHelpers, FormTableHelpers, FormFilterHelpers, ModalHelpers, BaseFormHelpers, ResetHelpers, ChoiceHelpers, SelectHelpers, ValidateHelpers }
+export { FormHelpers, FormTableHelpers, FormFilterHelpers, ModalHelpers, BaseFormHelpers, ResetHelpers, ChoiceHelpers, SelectHelpers, ValidateHelpers, DatePickerHelpers }

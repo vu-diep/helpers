@@ -7,7 +7,7 @@ import { check, formatApiUrl, numberFormatHelpers } from "./coreFunctions.js";
  * @param {function} renderUI function gọi ra giao diện
  * @param {string} pagination Id thẻ html nơi đổ dữ liệu phân trang
  */
-class Pagination extends URLHelpers {
+class PaginationHelpers extends URLHelpers {
     constructor(data, renderUI, pagination, api) {
         super();
         this.renderUI = renderUI;
@@ -138,7 +138,7 @@ class Pagination extends URLHelpers {
     }
 }
 
-class BaseLayout extends URLHelpers {
+class BaseLayoutHelpers extends URLHelpers {
     constructor(api, template, total, defaultParams) {
         super();
         this.api = api;
@@ -218,7 +218,7 @@ class BaseLayout extends URLHelpers {
         }
     }
 }
-class LayoutHelpers extends BaseLayout {
+class LayoutHelpers extends BaseLayoutHelpers {
     /**
        * @constructor 
        * @param {string, Array} api thực hiện gọi api, Nếu bạn có nhiều api thì hãy truyền dạng mảng. Dữ liệu sau khi trả về sẽ được gom lại thành 1 mảng chứa các object bên trong. Đối với api đầu tiên sẽ là api chính tức là: phân trang, lọc sẽ chỉ hoạt động ở api đầu tiên
@@ -269,7 +269,7 @@ class LayoutHelpers extends BaseLayout {
                 const element = document.getElementById(item.dom);
                 if (!element) {
                     console.error(`Không tìm thấy dom với id ${item.dom}`);
-                }else{
+                } else {
                     let value = res[item.key];
                     if (item.format && item.format === "date") {
                         value = dateTimeFormat(value);
@@ -359,7 +359,7 @@ class LayoutHelpers extends BaseLayout {
         }
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
-            new Pagination(res, this.renderUI.bind(this), this.pagination, this.api);
+            new PaginationHelpers(res, this.renderUI.bind(this), this.pagination, this.api);
         }
         this.tbody.innerHTML = html;
         this.setLabel();
@@ -388,4 +388,4 @@ class LayoutHelpers extends BaseLayout {
     }
 }
 
-export { LayoutHelpers, BaseLayout, Pagination }
+export { LayoutHelpers, BaseLayoutHelpers, PaginationHelpers }
