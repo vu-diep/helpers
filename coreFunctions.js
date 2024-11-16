@@ -114,4 +114,7 @@ function numberFormatHelpers(numberString, max = 0, groupSeparator = ",", decima
   return customFormattedNumber;
 }
 
-export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers };
+// Hàm kiểm tra xem một object có rỗng hay không
+const isEmptyObject = (obj) => Object.keys(obj).length === 0;
+
+export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers, isEmptyObject };

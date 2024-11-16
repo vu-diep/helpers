@@ -750,6 +750,8 @@ class DatePickerHelpers {
     initDatePicker(selector, start, options = {}) {
         $(this.form).find(selector).each((index, input) => {
             const $input = $(input);
+            // tắt gợi ý từ lần chọn trước đó
+            $input.attr('autocomplete', 'off');
             $input.daterangepicker({
                 startDate: start,
                 singleDatePicker: options.singleDatePicker || false, // Chọn một ngày nếu có

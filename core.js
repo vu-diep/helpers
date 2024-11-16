@@ -94,7 +94,7 @@ class RequestServerHelpers {
   }
 }
 
-/**Class làm việc  các sự kiện change*/
+/**Class làm việc  các sự kiện của 1 thẻ*/
 class EventHelpers {
   /**
    * 
@@ -106,7 +106,8 @@ class EventHelpers {
   }
   // Phương thức chung để thêm sự kiện
   addEvent(dom, eventType, callback) {
-    const domElement = this.scope.querySelector(dom);
+    // Nếu `dom` là `this.scope` hoặc selector là chính `scope`
+    const domElement = dom === this.scope ? this.scope : this.scope.querySelector(dom);
     // Kiểm tra xem dom có tồn tại và có phải là một phần tử DOM hợp lệ không
     if (!check(domElement, dom)) return;
     domElement.addEventListener(eventType, (e) => {
@@ -148,12 +149,7 @@ class URLHelpers {
   constructor(url = window.location.href) {
     this.url = new URL(url);
   }
-  setUrl(url) {
-    this.url = new URL(url);
-  }
-  getQueryString() {
-    return this.url.search;
-  }
+  /** Hàm có tác dụng lấy ra tham số cuối cùng đứng trước đấu / */
   getLastPathSegment() {
     const parts = this.url.pathname.split("/");
     return parts.pop();
