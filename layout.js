@@ -58,7 +58,7 @@ class PaginationHelpers extends URLHelpers {
                       <a class="btn-link" id="btn-collapse" href="javascript:" title="Thu gọn" ${data.all ? "" : "hidden"}> Thu gọn<span class="fas fa-angle-left ms-1"></span>
                       </a>
                   </div>
-                      <nav class="col-auto d-flex">
+                      <nav class="col-auto d-${data.all ? "none" : "flex"}">
                           <ul class="mb-0 pagination justify-content-end">
                               <li class="page-item ${data.currentPage <= 1 ? "disabled" : ""}">
                                   <a class="page-link ${data.currentPage <= 1 ? "disabled" : ""}" id="btn-before" ${data.currentPage <= 1 ? 'disabled=""' : ""} href="javascript:" title="Trang trước" >
