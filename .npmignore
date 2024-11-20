@@ -1,0 +1,7 @@
+# Loại trừ các file ảnh
+*.png
+*.jpg
+*.gif
+# Loại trừ thư mục cụ thể
+/images/
+/assets/

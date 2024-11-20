@@ -8,10 +8,9 @@ import { check, formatApiUrl, numberFormatHelpers } from "./coreFunctions.js";
  * @param {string} pagination Id thẻ html nơi đổ dữ liệu phân trang
  */
 class PaginationHelpers extends URLHelpers {
-    constructor(data, renderUI, pagination, api) {
+    constructor(data, renderUI, pagination) {
         super();
         this.renderUI = renderUI;
-        this.api = api;
         this.pagination = document.querySelector(pagination);
         if (!check(pagination, this.pagination)) return;
         this.initializeEvents();
@@ -58,6 +57,7 @@ class PaginationHelpers extends URLHelpers {
                       <a class="btn-link" id="btn-collapse" href="javascript:" title="Thu gọn" ${data.all ? "" : "hidden"}> Thu gọn<span class="fas fa-angle-left ms-1"></span>
                       </a>
                   </div>
+                  
                       <nav class="col-auto d-${data.all ? "none" : "flex"}">
                           <ul class="mb-0 pagination justify-content-end">
                               <li class="page-item ${data.currentPage <= 1 ? "disabled" : ""}">
@@ -139,7 +139,7 @@ class PaginationHelpers extends URLHelpers {
 }
 
 class BaseLayoutHelpers extends URLHelpers {
-    constructor(api, template, total, defaultParams) {
+    constructor(api, template, total, defaultParams = "") {
         super();
         this.api = api;
         if (!this.api) {
@@ -160,9 +160,29 @@ class BaseLayoutHelpers extends URLHelpers {
         this.subHtml = [];
         this.colspan = 14;
         this.defaultParams = defaultParams;
+        this.index = 0;
 
         this.setColspan();
         if (this.defaultParams !== "") this.getDefaultParam();
+    }
+
+    async renderUI() {
+        this.setLoading();
+        let params = this.getParams();
+        this.request.params = params;
+        let response = await this.request.getData(this.api);
+        this.insertHTMLInTable(response);
+    }
+
+    insertHTMLInTable(response) {
+        this.index = response.from;
+        const html = this.template(response);
+        // kiểm tra xem có thực hiện phân trang hay không
+        if (this.pagination) {
+            new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.api);
+        }
+        this.tbody.innerHTML = html;
+        this.setLabel();
     }
 
     /**Hàm có tác dụng lấy ra params mặc định */
@@ -217,7 +237,30 @@ class BaseLayoutHelpers extends URLHelpers {
             });
         }
     }
+
+    /**hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công việc bất kỳ. Thường dùng cho edit hoặc delete 
+     * @param {string} className của thẻ cần lắng nghe sự kiện click
+     * @param {callback} callback(id, e) là một hàm bất kỳ có tác dụng thực hiện sau khi click
+     * id: là id của thẻ bạn vừa click thông thường tôi sẽ đưa id của sản phẩm vào id thẻ
+     * e: bản thân cái thẻ vừa được click
+     * VD:
+     * layout.handleEventClick("btn-click", async(id, e) => {
+         console.log(id);
+        console.log(e);
+    })
+    */
+    handleEventClick(className, callback) {
+        this.tbody.addEventListener("click", function (e) {
+            // Kiểm tra xem phần tử được click hoặc thẻ cha của nó có chứa class không
+            const targetElement = e.target.closest(`.${className}`);
+            if (targetElement) {
+                let id = targetElement.id;
+                callback(id, e);
+            }
+        });
+    }
 }
+
 class LayoutHelpers extends BaseLayoutHelpers {
     /**
        * @constructor 
@@ -363,28 +406,6 @@ class LayoutHelpers extends BaseLayoutHelpers {
         }
         this.tbody.innerHTML = html;
         this.setLabel();
-    }
-
-    /**hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công việc bất kỳ. Thường dùng cho edit hoặc delete 
-     * @param {string} className của thẻ cần lắng nghe sự kiện click
-     * @param {callback} callback(id, e) là một hàm bất kỳ có tác dụng thực hiện sau khi click
-     * id: là id của thẻ bạn vừa click thông thường tôi sẽ đưa id của sản phẩm vào id thẻ
-     * e: bản thân cái thẻ vừa được click
-     * VD:
-     * layout.handleEventClick("btn-click", async(id, e) => {
-          console.log(id);
-          console.log(e);
-      })
-     */
-    handleEventClick(className, callback) {
-        this.tbody.addEventListener("click", function (e) {
-            // Kiểm tra xem phần tử được click hoặc thẻ cha của nó có chứa class không
-            const targetElement = e.target.closest(`.${className}`);
-            if (targetElement) {
-                let id = targetElement.id;
-                callback(id, e);
-            }
-        });
     }
 }
 
