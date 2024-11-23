@@ -340,7 +340,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
     insertHTMLInTable(res) {
         var data = res.data;
         let html = "";
-        if (Number(res.stauts) === 404) {
+        if (res.data.length === 0) {
             html += `
                   <tr class="loading-data">
                       <td class="text-center" colspan="${this.colspan}">

@@ -1,4 +1,4 @@
-import { formatApiUrl, check} from "./coreFunctions.js";
+import { formatApiUrl, check } from "./coreFunctions.js";
 // xác định message trả về
 const messageError = "error";
 const messageSussces = "success";
@@ -14,7 +14,7 @@ class RequestServerHelpers {
     this.route = route;
     this.params = {};
     this.statusMessage = true
-    this.headers = {'Content-Type': 'application/json',};
+    this.headers = { 'Content-Type': 'application/json', };
   }
 
   /**Hàm có tác dụng lấy ra dữ liệu
@@ -22,10 +22,14 @@ class RequestServerHelpers {
    */
   async getData(api = "") {
     const formatAPI = api === "" ? this.route : api;
-    const response = await axios.get(formatAPI, {
-      params: this.params,
-    });
-    return response.data;
+    try {
+      const response = await axios.get(formatAPI, {
+        params: this.params,
+      });
+      return response.data;
+    } catch (error) {
+      return error.response.data;
+    }
   }
 
   /**Hàm có tác dụng gửi dữ liệu
@@ -37,41 +41,41 @@ class RequestServerHelpers {
     try {
       response = await axios.post(formatAPI, data, {
         params: this.params,
-        headers: {...this.headers}
+        headers: { ...this.headers }
       });
-      
+
       if (debug) {
         console.log(response);
         return;
       }
-      return {status: response.status, message: response.data.message, data: response.data};
+      return { status: response.status, message: response.data.message, data: response.data };
     } catch (error) {
-      return {status: error.response.status, message: error.response.data.message}
+      return { status: error.response.status, message: error.response.data.message }
     }
   }
-  
 
-    /**Hàm có tác dụng gửi dữ liệu
-   * @param {string} [api=""] Nhận vào api gửi dữ liệu
-   */
-    async putData(data, debug = false, api = "") {
-      const formatAPI = api === "" ? this.route : api;
-      let response;
-      try {
-        response = await axios.put(formatAPI, data, {
-          params: this.params,
-          headers: {...this.headers}
-        });
-        
-        if (debug) {
-          console.log(response);
-          return false;
-        }
-        return {status: response.status, message: response.data.message, data: response.data};
-      } catch (error) {
-        return {status: error.response.status, message: error.response.data.message}
+
+  /**Hàm có tác dụng gửi dữ liệu
+ * @param {string} [api=""] Nhận vào api gửi dữ liệu
+ */
+  async putData(data, debug = false, api = "") {
+    const formatAPI = api === "" ? this.route : api;
+    let response;
+    try {
+      response = await axios.put(formatAPI, data, {
+        params: this.params,
+        headers: { ...this.headers }
+      });
+
+      if (debug) {
+        console.log(response);
+        return false;
       }
+      return { status: response.status, message: response.data.message, data: response.data };
+    } catch (error) {
+      return { status: error.response.status, message: error.response.data.message }
     }
+  }
 
   /**Hàm có tác dụng thực hiện gửi dữ liệu theo ý người dùng . Chỉ thực hiện gửi dữ liệu theo param với số lượng ít.
    * @param {string} [api=""] Nhận vào api xóa dữ liệu
@@ -353,7 +357,7 @@ class FileHelpers {
   exportFile(dom = "", api, name, params = {}, getParams = null, fileType = "xlsx") {
     const exportElement = dom ? document.querySelector(dom) : null;
     const handleClick = async () => {
-      getParams = getParams !== null ?  getParams() : {};
+      getParams = getParams !== null ? getParams() : {};
       const finalParams = { ...getParams, ...params };
       if (finalParams.page) {
         api = formatApiUrl(api, finalParams);

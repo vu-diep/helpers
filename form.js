@@ -1065,7 +1065,7 @@ class BaseFormHelpers extends RequestServerHelpers {
             case "post":
                 response = await this.postData(data, debug);
                 break;
-            case "post":
+            case "put":
                 response = await this.putData(data, debug);
                 break;
             default:
@@ -1125,7 +1125,7 @@ class FormHelpers extends BaseFormHelpers {
             data = this.addFromData(data);
         }
 
-        let response = this.sendFormData(data, this.method, this.debug)
+        let response = await this.sendFormData(data, this.method, this.debug)
         if (response !== false && this.handleResponse(response)) {
             this.finalizeForm(response);
             return { status: true, data: response.data };

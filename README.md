@@ -1,10 +1,7 @@
-<h2>I. Bắt đầu với Helpers.</h2>
-<p>
-    - Giới thiệu: Helpers là một thư viện javascript được sinh ra nhằm giúp nhân viên làm việc tại ASFY Tech code
-    frontend
-    nhanh hơn.
-</p>
+<h2>Lời mở đầu.</h2>
+<p>Xin chào bạn tôi là một lần trình viên trẻ khi tôi viết thư viện này tôi đang làm ở ASFY Tech, thư viện này sinh ra nhằm giúp mọi người ở công ty viết code javascript đơn giản hơn. Tôi chỉ có một mong muốn là mọi người có thể sử dụng thư viện này và phát triển nó lên cho hợp với thời đại mới của công ty.</p>
 
+<h2>I. Bắt đầu với Helpers.</h2>
 <p>
     - Logic hoạt động: Helpers được chia thành 2 phần chính là layout và form, layout có tác dụng hiển thị dữ liệu sau
     khi
@@ -190,7 +187,7 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 ![alt text](assets/images/image-12.png)
 
 <h2>VI. Hướng đẫn sử dụng các class trong layout.js</h2>
-<h4>1. PaginationHelpers class thao tác với việc phân trang</h4>
+<h4>1. PaginationHelpers class thao tác với việc phân trang. Khi bạn khởi tạo thì nó sẽ tự động phân trang cho bạn.</h4>
 <h5>- Giới thiệu các thuộc tính:</h5>
 
 <ul>
@@ -198,3 +195,19 @@ scope nó vẫn sẽ hiểu và lắng nghe.
     <li>renderUI: Function gọi ra giao diện</li>
     <li>pagination: Id thẻ html nơi đổ dữ liệu phân trang</li>
 </ul>
+
+![alt text](assets/images/image-13.png)
+
+<h4>2. BaseLayoutHelpers class này là cơ sở cho việc phát triển các layout.  </h4>
+<p>Lưu ý:  Khi bạn sử dụng class này nó sẽ tự động khởi tạo phân trang cho bạn và trong dom bạn phải có thẻ chứ id paginations, trong trường hợp bạn không muốn phân trang thì sét thuộc tính pagination = false.</p>
+<h5>- Giới thiệu các thuộc tính:</h5>
+
+<ul>
+    <li>api: Api gọi lấy dữ liệu</li>
+    <li>template: Bản thiết kế cho giao diện</li>
+    <li>total: Trường cần tính tổng. Trong trường hợp bạn có nhiều trường cần tính tổng thì truyền theo dạng mảng</li>
+    <li>defaultParams: Dữ liệu mặc định khi gọi api lấy layout</li>
+</ul>
+
+<b>2.1 renderUI: </b> <span>Hàm có tác dụng đưa dom ra màn hình </span>
+![alt text](assets/images/image-14.png)
