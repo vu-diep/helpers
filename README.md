@@ -1,5 +1,7 @@
 <h2>Lời mở đầu.</h2>
-<p>Xin chào bạn tôi là một lần trình viên trẻ khi tôi viết thư viện này tôi đang làm ở ASFY Tech, thư viện này sinh ra nhằm giúp mọi người ở công ty viết code javascript đơn giản hơn. Tôi chỉ có một mong muốn là mọi người có thể sử dụng thư viện này và phát triển nó lên cho hợp với thời đại mới của công ty.</p>
+<p>Xin chào bạn tôi là một lần trình viên trẻ khi tôi viết thư viện này tôi đang làm ở ASFY Tech, thư viện này sinh ra
+    nhằm giúp mọi người ở công ty viết code javascript đơn giản hơn. Tôi chỉ có một mong muốn là mọi người có thể sử
+    dụng thư viện này và phát triển nó lên cho hợp với thời đại mới của công ty.</p>
 
 <h2>I. Bắt đầu với Helpers.</h2>
 <p>
@@ -58,7 +60,8 @@ getData sẽ trả về Promise vậy nên bạn phải sử dụng async, await
 định sẽ lấy ra api bạn truyền vào khi khởi tạo class.
 ![alt text](assets/images/image-2.png)
 
-<b>1.2 Phương thức postData:</b> Phương thức có tác dụng gửi dữ liệu với method post và trả về object sau khi gửi request.
+<b>1.2 Phương thức postData:</b> Phương thức có tác dụng gửi dữ liệu với method post và trả về object sau khi gửi
+request.
 
 <h5>- Giới thiệu các thuộc tính:</h5>
 
@@ -96,7 +99,8 @@ nó sẽ mặc định là document.
 * eventType: Loại event
 * callback: Function thực hiện công việc nào đó
 
-<b>2.2 Các event hiện có:</b> input, click, change, addItem, search, submit: Các phương thức này đều có điểm chung là nhận vào
+<b>2.2 Các event hiện có:</b> input, click, change, addItem, search, submit: Các phương thức này đều có điểm chung là
+nhận vào
 1 dom và lắng nghe các sự kiện sau đó gọi 1 hàm callback để thực hiện công việc người dùng muốn.
 
 Lưu ý: Trong trường hợp thẻ bạn cần lắng nghe chính là scope thì cứ mạnh dạng truyền vào dom của
@@ -116,7 +120,8 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 <b>3.2 getParams: </b> <span>Hàm có tác dụng lấy params trên url</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
-    <li>key: Nhận vào key của param nếu bạn chỉ cần lấy 1 trường cụ thế. Nếu bạn muốn lấy tất cả param có trên url thì không cần quan tâm đến trường này</li>
+    <li>key: Nhận vào key của param nếu bạn chỉ cần lấy 1 trường cụ thế. Nếu bạn muốn lấy tất cả param có trên url thì
+        không cần quan tâm đến trường này</li>
 </ul>
 
 ![alt text](assets/images/image-7.png)
@@ -124,7 +129,8 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 <b>3.3 removeParam: </b> <span>Hàm có tác dụng xóa params trên url</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
-    <li>key: Nhận vào key của param nếu bạn chỉ cần xóa 1 trường cụ thế. Nếu bạn muốn xóa tất cả param có trên url thì không cần quan tâm đến trường này</li>
+    <li>key: Nhận vào key của param nếu bạn chỉ cần xóa 1 trường cụ thế. Nếu bạn muốn xóa tất cả param có trên url thì
+        không cần quan tâm đến trường này</li>
 </ul>
 
 ![alt text](assets/images/image-8.png)
@@ -179,7 +185,8 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 <ul>
     <li>api: api xuất file</li>
     <li>name: Tên file</li>
-    <li>dom: Id hoặc class thẻ lắng nghe sự kiện. Khi bạn không truyền tham số cho thuộc tính này thì nó tự động tải file</li>
+    <li>dom: Id hoặc class thẻ lắng nghe sự kiện. Khi bạn không truyền tham số cho thuộc tính này thì nó tự động tải
+        file</li>
     <li>params: params đi kèm</li>
     <li>getParams: Lấy params động rồi đi kèm</li>
 </ul>
@@ -198,16 +205,86 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 
 ![alt text](assets/images/image-13.png)
 
-<h4>2. BaseLayoutHelpers class này là cơ sở cho việc phát triển các layout.  </h4>
-<p>Lưu ý:  Khi bạn sử dụng class này nó sẽ tự động khởi tạo phân trang cho bạn và trong dom bạn phải có thẻ chứ id paginations, trong trường hợp bạn không muốn phân trang thì sét thuộc tính pagination = false.</p>
+<h4>2. BaseLayoutHelpers class này là cơ sở cho việc phát triển các layout. </h4>
+<p>Lưu ý: Khi bạn sử dụng class này nó sẽ tự động khởi tạo phân trang cho bạn và trong dom bạn phải có thẻ chứ id
+    paginations, trong trường hợp bạn không muốn phân trang thì sét thuộc tính pagination = false.</p>
 <h5>- Giới thiệu các thuộc tính:</h5>
 
 <ul>
     <li>api: Api gọi lấy dữ liệu</li>
     <li>template: Bản thiết kế cho giao diện</li>
-    <li>total: Trường cần tính tổng. Trong trường hợp bạn có nhiều trường cần tính tổng thì truyền theo dạng mảng</li>
-    <li>defaultParams: Dữ liệu mặc định khi gọi api lấy layout</li>
 </ul>
 
 <b>2.1 renderUI: </b> <span>Hàm có tác dụng đưa dom ra màn hình </span>
 ![alt text](assets/images/image-14.png)
+
+<h4>3. LayoutHelpers class này được kế thừa từ class BaseLayoutHelpers nhằm mục đích khởi tạo layout nhanh hơn, chỉ dùng
+    cho các layout đơn giản. </h4>
+<p>Lưu ý: Khi bạn sử dụng class này nó sẽ bất tiện khi bạn sử lý giao diện phức tạp thế nên bạn cân nhắc sử dụng class
+    này.</p>
+<h5>- Giới thiệu các thuộc tính:</h5>
+
+<ul>
+    <li>Các thuộc tính mặc định
+        <ul>
+            <li>api: Api gọi lấy dữ liệu</li>
+            <li>template: Bản thiết kế cho giao diện</li>
+            <li>total: Trường cần tính tổng. Trong trường hợp bạn có nhiều trường cần tính tổng thì truyền theo dạng
+                mảng</li>
+            <li>defaultParams: Dữ liệu mặc định khi gọi api lấy layout</li>
+        </ul>
+    </li>
+    <li>Các thuộc tính động
+        <ul>
+            <li>tbody: Id hoặc class nơi đổ ra dữ liệu. Hiện tại đang mặc định là: #list-data</li>
+            <li>statusHeader: Trạng thái hiển thị xem có index tự tăng ở đầu hay không. Nếu là false thì không hiển thị
+            </li>
+            <li>pagination: Id hoặc class nơi đổ dữ liệu phân trang. Hiện tại đang mặc định là: #paginations. Khi bạn
+                không muốn phân trang thì sét thuộc tính này là: False</li>
+            <li>request: Là thuộc tính tôi sử dụng sau khi khởi tạo class RequestServerHelpers</li>
+            <li>subHtml: Sử dụng để tính tổng ở cuối trang</li>
+        </ul>
+    </li>
+</ul>
+
+![alt text](assets/images/image-15.png)
+
+<b>3.1 handleEventClick: </b> <span>Hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công
+    việc bất kỳ. Thường dùng cho edit hoặc delete</span>
+<p>Lưu ý: Trước khi sử dụng hàm này bạn cần phải truyền id cho thẻ cần lắng nghe. Hàm này sẽ trả về id của thẻ cần lắng
+    nghe và dom của thẻ đó</p>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>className: Class của thẻ cần lắng nghe</li>
+    <li>name: Tên file</li>
+    <li>callback: (id, e) là một hàm bất kỳ có tác dụng thực hiện sau khi click</li>
+    <ul>
+        <li>id: id của thẻ bạn vừa click thông thường tôi sẽ đưa id của sản phẩm vào id thẻ</li>
+        <li>e: bản thân cái thẻ vừa được click</li>
+    </ul>
+</ul>
+
+![alt text](assets/images/image-16.png)
+
+<h2>VII. Hướng đẫn sử dụng các class trong form.js</h2>
+<h4>1. FormHelpers class là cơ sở để tạo các class form.</h4>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>Các thuộc tính mặc định
+        <ul>
+            <li>api: API được truyền vào để thực hiện công việc gửi dữ liệu </li>
+            <li>formSelector: Id hoặc class của form</li>
+            <li>modalSelector: Id hoặc class của modal</li>
+        </ul>
+    </li>
+    <li>Các thuộc tính động
+        <li>value: </li>
+    </li>
+</ul>
+<h5>- Giới thiệu các phương thức:</h5>
+<b>1.1 startModal: </b> <span>Hàm có tác dụng khởi tạo modal và lắng nghe sự kiện mở modal.</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>bntStartModal: id hoặc class để lắng nghe việc mở modal. Nếu để trống nó sẽ tự động mở modal sau khi gọi hàm</li>
+    <li>dataDefault: Dữ liệu mặc định được đổ vào form khi mở modal</li>
+</ul>

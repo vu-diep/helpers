@@ -725,7 +725,6 @@ class SelectHelpers {
 /**Class có tác dụng khởi tạo daterangepicker */
 class DatePickerHelpers {
     constructor(form) {
-
         this.form = form;
         // Lưu trữ các đối tượng daterangepicker đã khởi tạo
         this.dataDate = {};
@@ -742,7 +741,26 @@ class DatePickerHelpers {
         $(element).val(cont);
     }
 
-    /**Hàm khởi tạo daterangepicker và lưu đối tượng vào dataDate tham khảo các sử dụng ở hàm initialize
+    // Hàm tạo ranges linh hoạt dựa trên giá trị start
+    getRanges(start) {
+        return {
+            'Hôm nay': [start.clone(), start.clone()],
+            'Hôm qua': [start.clone().subtract(1, 'days'), start.clone().subtract(1, 'days')],
+            '7 ngày qua': [start.clone().subtract(6, 'days'), start.clone()],
+            '30 ngày qua': [start.clone().subtract(29, 'days'), start.clone()],
+            'Tháng này': [start.clone().startOf('month'), start.clone().endOf('month')],
+            'Tháng trước': [
+                start.clone().subtract(1, 'month').startOf('month'),
+                start.clone().subtract(1, 'month').endOf('month')
+            ],
+            'Tất cả thời gian': [
+                start.clone().subtract(10, 'year').startOf('day'),
+                start.clone().endOf('day')
+            ]
+        };
+    }
+
+    /**Hàm khởi tạo daterangepicker và lưu đối tượng vào dataDate tham khảo cách sử dụng ở hàm initialize
      * @param {string} selector class của thẻ input cần khởi tạo
      * @param {date} start thời gian bắt đầu
      * @param {object} [options] các cấu hình cho daterangepicker
@@ -750,7 +768,7 @@ class DatePickerHelpers {
     initDatePicker(selector, start, options = {}) {
         $(this.form).find(selector).each((index, input) => {
             const $input = $(input);
-            // tắt gợi ý từ lần chọn trước đó
+            // Tắt gợi ý từ lần chọn trước đó
             $input.attr('autocomplete', 'off');
             $input.daterangepicker({
                 startDate: start,
@@ -765,19 +783,21 @@ class DatePickerHelpers {
                     toLabel: "Đến",
                     customRangeLabel: "Tùy chỉnh",
                     daysOfWeek: ["CN", "T2", "T3", "T4", "T5", "T6", "T7"],
-                    monthNames: ["Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5",
-                        "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11",
-                        "Tháng 12"],
+                    monthNames: [
+                        "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5",
+                        "Tháng 6", "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"
+                    ],
                     firstDay: 1
-                }
+                },
+                ranges: this.getRanges(start) // Áp dụng ranges phù hợp với giá trị start
             });
-        })
+        });
     }
 
     // Phương thức khởi tạo các daterangepicker cần thiết
     initialize() {
-        this.initDatePicker('input.start-date-picker-default-this-month', moment().startOf('month'), moment());
-        this.initDatePicker('input.start-date-picker', moment(), moment());
+        this.initDatePicker('input.start-date-picker-default-this-month', moment().startOf('month'));
+        this.initDatePicker('input.start-date-picker', moment());
         this.initDatePicker('input.start-date-picker-single', moment(), { singleDatePicker: true });
         this.initDatePicker('input.start-date-picker-max-today', moment().subtract(7, 'days'), { maxDate: moment() });
         this.initDatePicker('input.start-date-picker-min-today', moment(), { minDate: moment() });
@@ -887,7 +907,6 @@ class BaseFormHelpers extends RequestServerHelpers {
         // lưu trữ khi khởi tạo form
         this.form = document.querySelector(formSelector);
         this.api = api;
-        this.value = "id";
         this.method = "post";
 
         this.layout = "";

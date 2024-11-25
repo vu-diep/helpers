@@ -2,6 +2,7 @@
 *.png
 *.jpg
 *.gif
+*.md
 # Loại trừ thư mục cụ thể
 /images/
 /assets/
