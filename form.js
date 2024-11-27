@@ -44,7 +44,12 @@ class ModalHelpers extends RequestServerHelpers {
             // Đổ dữ liệu mặc định vào form nếu có
             this.modal.addEventListener("shown.bs.modal", () => {
                 this.hideLoading();
-                if (dataDefault.length > 0) this.fillFormWithDefaults(dataDefault);
+                if(typeof dataDefault === "function"){
+                    const valueDataDefault = dataDefault();
+                    this.fillFormWithDefaults(valueDataDefault)
+                }else{
+                    if (dataDefault.length > 0) this.fillFormWithDefaults(dataDefault);
+                }
             });
             // Khởi tạo sự kiện đóng modal
             this.resetModal();
@@ -1022,9 +1027,10 @@ class BaseFormHelpers extends RequestServerHelpers {
 
     showError(errorData) {
 
-        if (errorData.status === 403) {
+        if (errorData.status === 403 || errorData.status === 422) {
             this.showErrorResponse(errorData.message);
-        } else {
+        }
+        else {
             showErrorMD(errorData.message);
         }
     }
@@ -1055,7 +1061,13 @@ class BaseFormHelpers extends RequestServerHelpers {
         for (let name in errors) {
             const element = this.form.querySelector(`[name="${name}"]`);
             if (element) {
-                changeValidateMessage(element, true, errors[name], ["p-2", "small", "text-danger"]);
+                let message = "";
+                if(typeof errors[name] === "object"){
+                    message = errors[name][0];
+                }else{
+                    message = errors[name];
+                }
+                changeValidateMessage(element, true, message, ["p-2", "small", "text-danger"]);
             }
         }
     }
@@ -1144,8 +1156,8 @@ class FormHelpers extends BaseFormHelpers {
             data = this.addFromData(data);
         }
 
-        let response = await this.sendFormData(data, this.method, this.debug)
-        if (response !== false && this.handleResponse(response)) {
+        let response = await this.sendFormData(data, this.method, this.debug);
+        if (this.debug == false && response !== false && this.handleResponse(response)) {
             this.finalizeForm(response);
             return { status: true, data: response.data };
         }
@@ -1274,7 +1286,7 @@ class FormTableHelpers extends BaseFormHelpers {
                 const response = await this.sendFormData(this.dataTotal, this.method, this.debug);
 
                 if (this.responseHandler && response && this.responseHandler.status === response.status) {
-                    await this.responseHandler.function();
+                    await this.responseHandler.function(response);
                     this.updateTableData(response.data);
                 }
 
@@ -1369,7 +1381,8 @@ class FormTableHelpers extends BaseFormHelpers {
 class FormFilterHelpers extends BaseFormHelpers {
     constructor(api, formSelector, layout) {
         super(api, formSelector);
-        this.keysToKeep = ["page", "show_all"];
+        this.keysToKeep = [];
+        this.defaultKeysToKeep = ["page", "show_all", ...this.keysToKeep];
         this.layout = layout;
         this.hasEventListener = false; // Đánh dấu sự kiện đã được đăng ký
         this.btnDeleteFilter = "#deleteFilter";
@@ -1424,7 +1437,7 @@ class FormFilterHelpers extends BaseFormHelpers {
 
                 this.toggleLoading(submitButton, true);
                 let data = this.getFormData();
-                this.url.removeParamsExcept(this.keysToKeep);  // Xóa các tham số không cần thiết
+                this.url.removeParamsExcept(this.defaultKeysToKeep);  // Xóa các tham số không cần thiết
                 this.url.addParamsToURL(data); // Đưa các param lên URL
 
                 this.layout.type = "search"; // Gán kiểu tìm kiếm cho layout
@@ -1455,7 +1468,7 @@ class FormFilterHelpers extends BaseFormHelpers {
 
             this.toggleLoading(buttonFilter, true);
 
-            let keysToKeep = [...this.keysToKeep, ...paramsNotDelete];
+            let keysToKeep = [...this.defaultKeysToKeep, ...paramsNotDelete];
             this.url.removeParamsExcept(keysToKeep); // Xóa các param trừ những param cần giữ lại
             if (callback !== null) callback();
             // thực hiện lấy ra params default

@@ -183,6 +183,7 @@ class BaseLayoutHelpers extends URLHelpers {
         }
         this.tbody.innerHTML = html;
         this.setLabel();
+        this.setTitle();
     }
 
     /**Hàm có tác dụng lấy ra params mặc định */
@@ -217,25 +218,45 @@ class BaseLayoutHelpers extends URLHelpers {
         `;
         this.tbody.innerHTML = loadding;
     }
+
+    // hàm có tác dụng setAttribute vào tbody. Với dữ liệu được lấy từ thead
+    setAttribute(attribute) {
+        let tableElement = this.tbody.closest('table');
+        let headers = tableElement.querySelectorAll('thead th');
+        let rows = tableElement.querySelectorAll('tbody tr');
+
+        rows.forEach(function (row) {
+            if (!row.classList.contains('none-data')) {
+                let cells = row.querySelectorAll('td');
+                let headerIndex = 0; // Dùng để theo dõi vị trí của tiêu đề
+
+                cells.forEach(function (cell) {
+                    const colspan = parseInt(cell.getAttribute("colspan")) || 1; // Lấy số `colspan`, mặc định là 1 nếu không có
+
+                    // Lấy tiêu đề tương ứng từ `headers`
+                    let label = headers[headerIndex]?.textContent.trim();
+                    label = label?.toUpperCase();
+
+                    // Set thuộc tính
+                    cell.setAttribute(attribute, label);
+
+                    // Tăng headerIndex dựa trên colspan
+                    headerIndex += colspan;
+                });
+            }
+        });
+    }
+
     // Hàm có tác dụng sét data layble cho thẻ td dựa theo thẻ th mục đích khi về màn hình mobile có thể hiển thị được
     setLabel() {
         let tableElement = this.tbody.closest('table');
         if (tableElement && tableElement.classList.contains('table-config')) {
-            let headers = tableElement.querySelectorAll('thead th');
-            let rows = tableElement.querySelectorAll('tbody tr');
-
-            rows.forEach(function (row) {
-                if (!row.classList.contains('none-data')) {
-                    let cells = row.querySelectorAll('td');
-
-                    cells.forEach(function (cell, index) {
-                        let label = headers[index]?.textContent.trim();
-                        label = label?.toUpperCase();
-                        cell.setAttribute('data-label', label);
-                    });
-                }
-            });
+            this.setAttribute('data-label');
         }
+    }
+    // Hàm có tác dụng set title cho các thẻ td
+    setTitle() {
+        this.setAttribute('title');
     }
 
     /**hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công việc bất kỳ. Thường dùng cho edit hoặc delete 
@@ -315,9 +336,9 @@ class LayoutHelpers extends BaseLayoutHelpers {
                 } else {
                     let value = res[item.key];
                     if (item.format && item.format === "date") {
-                        value = dateTimeFormat(value);
+                        value = dateTimeFormat(value ?? 0);
                     } else if (item.format === "number") {
-                        value = numberFormatHelpers(value);
+                        value = numberFormatHelpers(value ?? 0);
                     }
                     element.innerText = `${value} ${item.subContent || ""}`.trim();
                 }
@@ -340,7 +361,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
     insertHTMLInTable(res) {
         var data = res.data;
         let html = "";
-        if (res.data.length === 0) {
+        if (data && data.length === 0) {
             html += `
                   <tr class="loading-data">
                       <td class="text-center" colspan="${this.colspan}">
@@ -350,7 +371,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
               `;
         } else {
             if (!data || data.from === "undefined") {
-                console.error("api đang bị lỗi hoặc không sử dụng class phân trang");
+                console.error("api đang bị lỗi hoặc bạn k không sử dụng class phân trang ở backend");
                 return;
             }
             let totals = {};
@@ -406,6 +427,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
         }
         this.tbody.innerHTML = html;
         this.setLabel();
+        this.setTitle();
     }
 }
 

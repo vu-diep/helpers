@@ -1,6 +1,6 @@
 {
   "name": "helpers-vu_diep",
-  "version": "1.1.9",
+  "version": "1.2.1",
   "description": "Giúp code js đơn giản hơn khi code ở ASFY Tech",
   "main": "core.js", 
    "scripts": {

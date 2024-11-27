@@ -43,10 +43,8 @@ class RequestServerHelpers {
         params: this.params,
         headers: { ...this.headers }
       });
-
       if (debug) {
         console.log(response);
-        return;
       }
       return { status: response.status, message: response.data.message, data: response.data };
     } catch (error) {
