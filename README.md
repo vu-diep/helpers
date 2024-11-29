@@ -10,9 +10,11 @@
     gọi api, form có tác dụng thực hiện công việc gửi dữ liệu lên backend.
 
 </p>
-- Tải thư viện: Khi bạn tiếp cận với một base code mới do quản lý cấp việc đầu tiên của bạn là chạy câu lệnh sau npm
-install helpers-vu_diep@latest mục đích nhằm cập nhật phiên bản mới nhất về. Với các phiên bản ^1.1.7 thì chỉ sử dụng
+- Tải thư viện: Khi bạn tiếp cận với một base code mới do quản lý cấp việc đầu tiên của bạn là chạy câu lệnh sau:
+<p><code> npm install helpers-vu_diep@latest</code></p>
+Mục đích nhằm cập nhật phiên bản mới nhất về. Với các phiên bản ^1.1.7 thì chỉ sử dụng
 với base laravel.
+<p>- Sử dụng câu lệnh sau để tạo file view: <code> php artisan make:view tai-san/tai-san-co-dinh --d </code></p>
 
 <h4>Hướng đẫn cài đặt:</h4>
 
@@ -267,24 +269,84 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 ![alt text](assets/images/image-16.png)
 
 <h2>VII. Hướng đẫn sử dụng các class trong form.js</h2>
-<h4>1. FormHelpers class là cơ sở để tạo các class form.</h4>
+<h4>1. BaseFormHelpers class là cơ sở để tạo các class form.</h4>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
     <li>Các thuộc tính mặc định
         <ul>
             <li>api: API được truyền vào để thực hiện công việc gửi dữ liệu </li>
             <li>formSelector: Id hoặc class của form</li>
+            <li>validations: Bản thiết kế được sử dụng để validate</li>
             <li>modalSelector: Id hoặc class của modal</li>
         </ul>
     </li>
     <li>Các thuộc tính động
-        <li>value: </li>
+        <ul>
+            <li>method: Phương thức được gửi đi mặc định là post</li>
+            <li>layout: Layout được khởi tạo từ class layout có tác dụng gọi lại giao diện sau khi submit</li>
+            <li>debug: Trạng thái debug</li>
+            <li>priceFormat: Là một mảng lưu các giá cần format trước khi gửi lên backend</li>
+            <li>dateFormat: Là một mảng lưu các thời gian cần format trước khi gửi lên backend</li>
+            <li>subdata: Dữ liệu phụ được dưa từ bên ngoài trước khi gửi lên backend</li>
+            <li>exportExcel: Lưu trạng thái có xuất excel sau khi submit. Nếu muốn xuất excel sau khi gửi dữ liệu thì
+                truyền vào một object</li>
+            <li>responseHandler: Là một callback có tác dụng sau khi submit xong thì thực hiện chạy hàm dựa theo status
+                trả về</li>
+            <li>resetStatus: Trạng xác định xem sau khi submit có reset dữ liệu trong form hay không</li>
+            <li>modalStatus: Trạng thái xác định xem sau khi submit có đóng modal hay không</li>
+        </ul>
+    </li>
+    <li>Các thuộc tính được sử dụng để lưu khi kế thừa các class khác
+        <ul>
+            <li>choice: Lưu các thuộc tính khi khởi tạo class ChoiceHelpers</li>
+            <li>datePicker: Lưu các thuộc tính khi khởi tạo class datePickerHelpers</li>
+            <li>select: Lưu các thuộc tính khi khởi tạo class SelectHelpers</li>
+            <li>event: Lưu các thuộc tính khi khởi tạo class EventHelpers</li>
+            <li>validate: Lưu các thuộc tính khi khởi tạo class ValidateHelpers</li>
+            <li>modal: Lưu các thuộc tính khi khởi tạo class ModalHelpers</li>
+            <li>reset: Lưu các thuộc tính khi khởi tạo class ResetHelpers</li>
+            <li>file: Lưu các thuộc tính khi khởi tạo class FileHelpers</li>
+            <li>url: Lưu các thuộc tính khi khởi tạo class URLHelpers</li>
+        </ul>
     </li>
 </ul>
 <h5>- Giới thiệu các phương thức:</h5>
-<b>1.1 startModal: </b> <span>Hàm có tác dụng khởi tạo modal và lắng nghe sự kiện mở modal.</span>
+<b>1.1 getFormData: </b> <span>Hàm có tác dụng lấy ra dữ liệu trong 1 form. Bạn có thể sử dụng hàm này thông qua việc lắng nghe sự kiện submit và lấy dữ liệu ra</span>
+
+![alt text](assets/images/image-17.png)
+
+<b>1.2 setFormData: </b> <span>Hàm có tác dụng đưa dữ liệu vào trong 1 form.</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
-    <li>bntStartModal: id hoặc class để lắng nghe việc mở modal. Nếu để trống nó sẽ tự động mở modal sau khi gọi hàm</li>
-    <li>dataDefault: Dữ liệu mặc định được đổ vào form khi mở modal</li>
+    <li>data: Một object chứa dữa liệu đưa vào form. key là tên trường value là dữ liệu
+    </li>
+</ul>
+
+![alt text](assets/images/image-18.png)
+
+<b>1.3 formatData: </b> <span>Hàm có tác dụng định dạng lại dữ liệu trước khi gửi lên backend.</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>data: Một object chứa dữa liệu đưa vào form. key là tên trường value là dữ liệu cần format
+    </li>
+</ul>
+
+![alt text](assets/images/image-19.png)
+
+<b>1.4 handleResponse: </b> <span>Hàm có tác dụng kiểm tra và xử lý phản hồi từ API</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>res: Response sau khi truy vấn</li>
+</ul>
+<b>1.5 showError: </b> <span>Hàm có tác dụng hiển thị lỗi khi response trả về lỗi</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>errorData: Dữ liệu lỗi trả về</li>
+</ul>
+<b>1.6 finalizeForm: </b> <span>Hàm có tác dụng xử lý kết thúc sau khi submit form. Công việc cụ thể như: Ẩn modal, Reset form, Xuất excel
+</span>
+
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>res: Response sau khi truy vấn</li>
 </ul>

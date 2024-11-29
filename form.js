@@ -32,6 +32,7 @@ class ModalHelpers extends RequestServerHelpers {
      * ]
     */
     startModal(bntStartModal, dataDefault = []) {
+        let isModalInitialized = false; // Cờ kiểm tra để tránh gọi API nhiều lần
 
         const openModal = () => {
             this.modal = document.querySelector(this.modalSelector);
@@ -42,25 +43,31 @@ class ModalHelpers extends RequestServerHelpers {
             this.setLoading();
 
             // Đổ dữ liệu mặc định vào form nếu có
-            this.modal.addEventListener("shown.bs.modal", () => {
-                this.hideLoading();
-                if(typeof dataDefault === "function"){
-                    const valueDataDefault = dataDefault();
-                    this.fillFormWithDefaults(valueDataDefault)
-                }else{
-                    if (dataDefault.length > 0) this.fillFormWithDefaults(dataDefault);
-                }
-            });
+            if (!isModalInitialized) { // Chỉ gắn sự kiện nếu modal chưa được khởi tạo
+                this.modal.addEventListener("shown.bs.modal", async () => {
+                    this.hideLoading();
+                    if (typeof dataDefault === "function") {
+                        const valueDataDefault = await dataDefault();
+                        this.fillFormWithDefaults(valueDataDefault);
+                    } else {
+                        if (dataDefault.length > 0) this.fillFormWithDefaults(dataDefault);
+                    }
+                });
+                isModalInitialized = true; // Đánh dấu modal đã được khởi tạo
+            }
+
             // Khởi tạo sự kiện đóng modal
             this.resetModal();
         };
 
         // Nếu có bntStartModal, gắn sự kiện click vào phần tử đó để mở modal
-
         if (bntStartModal) {
             const element = document.querySelector(bntStartModal);
 
             if (!check(element, bntStartModal)) return;
+
+            // Đảm bảo sự kiện click chỉ được gắn một lần
+            element.removeEventListener("click", openModal);
             element.addEventListener("click", openModal);
         } else {
             openModal();
@@ -239,12 +246,21 @@ class ValidateHelpers {
         for (let key in dom) {
             let item = dom[key];
             let type = item.getAttribute("type");
+        
             if (type === "file") {
+                // Xử lý input file
                 data[key] = item.files[0];
+            } else if (type === "radio" || type === "checkbox") {
+                // Chỉ lấy giá trị nếu input có checked
+                if (item.checked) {
+                    data[key] = item.value.trim();
+                }
             } else {
+                // Xử lý các input khác
                 data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
             }
         }
+        
         return data;
     }
 
@@ -290,13 +306,19 @@ class ValidateHelpers {
             let name = item.getAttribute("name");
             if (name) {
                 let value = item;
-                dom[name] = value;
-                if (textSelect && item.tagName.toLowerCase() === "select") {
-                    dom[`text${name}`] = item.textContent;
+                if (value.type === "radio" || value.type === "checkbox") {
+                    // Chỉ lưu giá trị của radio được chọn
+                    if (value.checked) {
+                        dom[name] = value; // Lưu giá trị của radio được chọn
+                    }
+                }else{
+                    dom[name] = value;
+                    if (textSelect && item.tagName.toLowerCase() === "select") {
+                        dom[`text${name}`] = item.textContent;
+                    }
                 }
             }
         });
-
         return dom;
     }
 
@@ -882,10 +904,14 @@ class ResetHelpers {
         for (let item of this.elements) {
             const className = item.getAttribute('class');
             // Không xóa trắng với tất cả phần tử có class bắt đầu với 'start-date-picker'
-            const checkDatePicker = className.split(" ").some(classItem => classItem.startsWith('start-date-picker'));
-            if (checkDatePicker) continue;
-            // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
-            if (this.notRest.includes(item.name)) continue;
+            if (className) {
+                const checkDatePicker = className.split(" ").some(classItem => classItem.startsWith('start-date-picker'));
+                if (checkDatePicker) continue;
+                // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
+                if (this.notRest.includes(item.name)) continue;
+            }
+            // Không reset với input có type là radio hoặc checkbox
+            if (item.type === "radio" || item.type === "checkbox") continue;
             this.reset(item);
         }
         clearAllClassValidateHelpers(this.form.form);
@@ -916,7 +942,6 @@ class BaseFormHelpers extends RequestServerHelpers {
 
         this.layout = "";
         this.debug = "";
-        this.param = {};
         this.priceFormat = [];
         this.dateFormat = [];
         this.subdata = {};
@@ -925,7 +950,6 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.responseHandler = false;
         this.resetStatus = true;
         this.modalStatus = true;
-        this.statusSubmit = true;
 
         this.choice = new ChoiceHelpers(this.form);
         // mặc định khởi tạo choice
@@ -1062,9 +1086,9 @@ class BaseFormHelpers extends RequestServerHelpers {
             const element = this.form.querySelector(`[name="${name}"]`);
             if (element) {
                 let message = "";
-                if(typeof errors[name] === "object"){
+                if (typeof errors[name] === "object") {
                     message = errors[name][0];
-                }else{
+                } else {
                     message = errors[name];
                 }
                 changeValidateMessage(element, true, message, ["p-2", "small", "text-danger"]);
@@ -1167,7 +1191,6 @@ class FormHelpers extends BaseFormHelpers {
      * Lắng nghe sự kiện submit của form
      */
     handleFormSubmit() {
-        if (this.statusSubmit === false) return;
         this.form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
@@ -1382,7 +1405,7 @@ class FormFilterHelpers extends BaseFormHelpers {
     constructor(api, formSelector, layout) {
         super(api, formSelector);
         this.keysToKeep = [];
-        this.defaultKeysToKeep = ["page", "show_all", ...this.keysToKeep];
+        this.defaultKeysToKeep = ["page", "show_all"];
         this.layout = layout;
         this.hasEventListener = false; // Đánh dấu sự kiện đã được đăng ký
         this.btnDeleteFilter = "#deleteFilter";
@@ -1437,7 +1460,8 @@ class FormFilterHelpers extends BaseFormHelpers {
 
                 this.toggleLoading(submitButton, true);
                 let data = this.getFormData();
-                this.url.removeParamsExcept(this.defaultKeysToKeep);  // Xóa các tham số không cần thiết
+                let keysToKeep = [...this.defaultKeysToKeep, ...this.keysToKeep];
+                this.url.removeParamsExcept(keysToKeep); // Xóa các param trừ những param cần giữ lại
                 this.url.addParamsToURL(data); // Đưa các param lên URL
 
                 this.layout.type = "search"; // Gán kiểu tìm kiếm cho layout
@@ -1468,7 +1492,7 @@ class FormFilterHelpers extends BaseFormHelpers {
 
             this.toggleLoading(buttonFilter, true);
 
-            let keysToKeep = [...this.defaultKeysToKeep, ...paramsNotDelete];
+            let keysToKeep = [...this.defaultKeysToKeep, ...paramsNotDelete, ...this.keysToKeep];
             this.url.removeParamsExcept(keysToKeep); // Xóa các param trừ những param cần giữ lại
             if (callback !== null) callback();
             // thực hiện lấy ra params default
