@@ -288,10 +288,28 @@ scope nó vẫn sẽ hiểu và lắng nghe.
             <li>priceFormat: Là một mảng lưu các giá cần format trước khi gửi lên backend</li>
             <li>dateFormat: Là một mảng lưu các thời gian cần format trước khi gửi lên backend</li>
             <li>subdata: Dữ liệu phụ được dưa từ bên ngoài trước khi gửi lên backend</li>
-            <li>exportExcel: Lưu trạng thái có xuất excel sau khi submit. Nếu muốn xuất excel sau khi gửi dữ liệu thì
-                truyền vào một object</li>
+            <li>exportExcel: Lưu trạng thái có xuất excel sau khi submit. Nếu muốn xuất excel sau khi gửi dữ liệu thì truyền vào một object
+                <p>Cấu trúc:
+                    <code>
+                        form.exportExcel = {api: '/api/tai-san-co-dinh?export-excel': "", key: "id"}
+                    </code>
+                </p>
+                <p>Giải thích</p>
+                <ul>
+                    <li>api: API xuất excel</li>
+                    <li>key: key trả về sau khi backend submit xong</li>
+                </ul>
+            </li>
             <li>responseHandler: Là một callback có tác dụng sau khi submit xong thì thực hiện chạy hàm dựa theo status
-                trả về</li>
+                trả về
+                <p>Cấu trúc:
+                    <code>
+                        form.responseHandler = {'status': 201, function: (respose) => {
+                        console.log(respose);
+                        }}
+                    </code>
+                </p>
+            </li>
             <li>resetStatus: Trạng xác định xem sau khi submit có reset dữ liệu trong form hay không</li>
             <li>modalStatus: Trạng thái xác định xem sau khi submit có đóng modal hay không</li>
         </ul>
@@ -311,7 +329,8 @@ scope nó vẫn sẽ hiểu và lắng nghe.
     </li>
 </ul>
 <h5>- Giới thiệu các phương thức:</h5>
-<b>1.1 getFormData: </b> <span>Hàm có tác dụng lấy ra dữ liệu trong 1 form. Bạn có thể sử dụng hàm này thông qua việc lắng nghe sự kiện submit và lấy dữ liệu ra</span>
+<b>1.1 getFormData: </b> <span>Hàm có tác dụng lấy ra dữ liệu trong 1 form. Bạn có thể sử dụng hàm này thông qua việc
+    lắng nghe sự kiện submit và lấy dữ liệu ra</span>
 
 ![alt text](assets/images/image-17.png)
 
@@ -333,17 +352,22 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 
 ![alt text](assets/images/image-19.png)
 
-<b>1.4 handleResponse: </b> <span>Hàm có tác dụng kiểm tra và xử lý phản hồi từ API</span>
+<b>1.4 handleResponse: </b> <span>Hàm có tác dụng kiểm tra và xử lý phản hồi từ API. Thực hiện chạy responseHandler khi
+    status hợp lệ, thực hiện hàm showError khi lỗi lớn hơn 400</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
     <li>res: Response sau khi truy vấn</li>
 </ul>
-<b>1.5 showError: </b> <span>Hàm có tác dụng hiển thị lỗi khi response trả về lỗi</span>
+<b>1.5 showError: </b> <span>Hàm có tác dụng hiển thị lỗi khi response trả về lỗi. Nếu status là 403 hoặc 422 thì thông báo lỗi ra form thông qua việc gọi hàm showErrorResponse</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
     <li>errorData: Dữ liệu lỗi trả về</li>
 </ul>
-<b>1.6 finalizeForm: </b> <span>Hàm có tác dụng xử lý kết thúc sau khi submit form. Công việc cụ thể như: Ẩn modal, Reset form, Xuất excel
+
+![alt text](assets/images/image-20.png)
+
+<b>1.6 finalizeForm: </b> <span>Hàm có tác dụng xử lý kết thúc sau khi submit form. Công việc cụ thể như: Ẩn modal,
+    Reset form, Xuất excel
 </span>
 
 <h5>- Giới thiệu các thuộc tính:</h5>
