@@ -1,6 +1,6 @@
 import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core.js";
 import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers } from "./coreFunctions.js";
-import { removeCommasHelpers } from "./common.js";
+import { removeCommasHelpers, checkOutput } from "./common.js";
 
 /**Class làm việc với modal */
 class ModalHelpers extends RequestServerHelpers {
@@ -152,17 +152,42 @@ class ModalHelpers extends RequestServerHelpers {
         }
     }
 
+    // hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
+    applyAttributeData(item, value) {
+        // Kiểm tra loại của input
+        if (item.type === "radio" || item.type === "checkbox") {
+            if (String(item.value) === String(value)) {
+                item.checked = true; // Đánh dấu input
+            } else {
+                item.checked = false; // Bỏ đánh dấu nếu không khớp
+            }
+        } else if (item.hasAttribute("data-choice")) {
+            let id = item.getAttribute("id");
+            let choiceInstance = this.dataChoice[`#${id}`];
+            if (choiceInstance) {
+                choiceInstance.setChoiceByValue(String(value));
+            } else {
+                console.error(`Choice instance for #${id} is not initialized.`);
+            }
+        } else {
+            // Xử lý các loại input khác
+            if (this.priceFormat.includes(name)) {
+                item.value = numberFormatHelpers(value);
+            } else if (this.dateFormat.includes(name)) {
+                item.value = dateTimeFormat(value);
+            } else {
+                item.value = value;
+            }
+        }
+    }
+
     /** Đổ dữ liệu mặc định vào form */
     async fillFormWithDefaults(dataDefault) {
         dataDefault.forEach(async (item) => {
             const element = this.form.form.querySelector(item.dom);
             if (element) {
                 let value = typeof item.value === "function" ? await item.value() : item.value;
-                if (["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName)) {
-                    element.value = value;
-                } else {
-                    element.textContent = value;
-                }
+                this.applyAttributeData(element, value)
             } else {
                 console.error("Không có phần tử này: " + item.dom + " trong DOM");
             }
@@ -176,28 +201,12 @@ class ModalHelpers extends RequestServerHelpers {
             const name = item.getAttribute("name");
             if (name && data.hasOwnProperty(name)) {
                 let value = data[name];
-                if (item.hasAttribute("data-choice")) {
-                    let id = item.getAttribute("id");
-                    let choiceInstance = this.dataChoice[`#${id}`];
-                    if (choiceInstance) {
-                        choiceInstance.setChoiceByValue(String(value));
-                    } else {
-                        console.error(`Choice instance for #${id} is not initialized.`);
-                    }
-                } else {
-                    if (this.priceFormat.includes(name)) {
-                        item.value = numberFormatHelpers(value);
-                    } else if (this.dateFormat.includes(name)) {
-                        item.value = dateTimeFormat(value);
-                    } else {
-                        item.value = value;
-                    }
-                }
+                this.applyAttributeData(item, value)
             }
         }
         this.hideLoading();
-
     }
+
 
     /** Reset modal khi đóng */
     resetModal() {
@@ -246,7 +255,7 @@ class ValidateHelpers {
         for (let key in dom) {
             let item = dom[key];
             let type = item.getAttribute("type");
-        
+
             if (type === "file") {
                 // Xử lý input file
                 data[key] = item.files[0];
@@ -260,7 +269,7 @@ class ValidateHelpers {
                 data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
             }
         }
-        
+
         return data;
     }
 
@@ -311,7 +320,7 @@ class ValidateHelpers {
                     if (value.checked) {
                         dom[name] = value; // Lưu giá trị của radio được chọn
                     }
-                }else{
+                } else {
                     dom[name] = value;
                     if (textSelect && item.tagName.toLowerCase() === "select") {
                         dom[`text${name}`] = item.textContent;
@@ -540,11 +549,11 @@ class SelectHelpers {
     eventListenerChangeForData(selectChange, receive, value, api = "", key = "") {
 
         // Lấy phần tử DOM cho selectChange
-        const domSelectChange = this.form.querySelector(selectChange);
+        const domSelectChange = this.form.form.querySelector(selectChange);
         if (!check(domSelectChange, selectChange)) return;
         // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
         const isReceiveArray = Array.isArray(receive);
-        const domReceive = isReceiveArray ? null : this.form.querySelector(receive);
+        const domReceive = isReceiveArray ? null : this.form.form.querySelector(receive);
         if (!isReceiveArray && !domReceive) {
             console.error("Không tìm thấy id hoặc class này: " + receive);
             return;
@@ -555,7 +564,7 @@ class SelectHelpers {
                 receive.forEach((item) => {
                     const dataCustomProperties = data[item.value];
                     // chỉ cho phép tìm các phần tử ở trong form
-                    let dom = this.form.querySelector(item.dom);
+                    let dom = this.form.form.querySelector(item.dom);
                     this.updateDomReceive(dom, dataCustomProperties);
                 });
             } else if (api) {
@@ -609,7 +618,7 @@ class SelectHelpers {
         // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
         const isReceiveArray = Array.isArray(receive);
 
-        const domReceive = isReceiveArray ? null : this.form.querySelector(`[name="${receive}"]`);
+        const domReceive = isReceiveArray ? null : this.form.form.querySelector(`[name="${receive}"]`);
 
         if (!isReceiveArray && !domReceive) {
             console.error("Không tìm thấy id hoặc class này: " + receive);
@@ -621,7 +630,7 @@ class SelectHelpers {
             if (isReceiveArray) {
                 receive.forEach((item) => {
                     // Chỉ cho phép tìm các phần tử ở trong form
-                    let dom = this.form.querySelector(`[name="${item}"]`);
+                    let dom = this.form.form.querySelector(`[name="${item}"]`);
                     if (!dom) return; // Nếu không tìm thấy phần tử, bỏ qua
                     if (dom.getAttribute("data-choice")) {
                         let id = dom.getAttribute("id");
@@ -942,6 +951,7 @@ class BaseFormHelpers extends RequestServerHelpers {
 
         this.layout = "";
         this.debug = "";
+        this.param = {};
         this.priceFormat = [];
         this.dateFormat = [];
         this.subdata = {};
@@ -950,6 +960,7 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.responseHandler = false;
         this.resetStatus = true;
         this.modalStatus = true;
+        this.statusSubmit = true;
 
         this.choice = new ChoiceHelpers(this.form);
         // mặc định khởi tạo choice
@@ -1033,7 +1044,7 @@ class BaseFormHelpers extends RequestServerHelpers {
     handleResponse(res) {
 
         if (this.responseHandler && this.responseHandler.status === res.status) {
-            this.responseHandler.function();
+            this.responseHandler.function(res);
         }
 
         if (res.status >= 400) {
@@ -1191,6 +1202,7 @@ class FormHelpers extends BaseFormHelpers {
      * Lắng nghe sự kiện submit của form
      */
     handleFormSubmit() {
+        if (this.statusSubmit === false) return;
         this.form.addEventListener("submit", async (e) => {
             e.preventDefault();
 
