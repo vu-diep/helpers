@@ -9,9 +9,10 @@ import { check, formatApiUrl, numberFormatHelpers } from "./coreFunctions.js";
  * @param {string} pagination Id thẻ html nơi đổ dữ liệu phân trang
  */
 class PaginationHelpers extends URLHelpers {
-    constructor(data, renderUI, pagination) {
+    constructor(data, renderUI, pagination, event) {
         super();
         this.renderUI = renderUI;
+        this.eventInitialized = event;
         this.pagination = document.querySelector(pagination);
         if (!check(pagination, this.pagination)) return;
         this.initializeEvents();
@@ -19,6 +20,8 @@ class PaginationHelpers extends URLHelpers {
     }
     // Hàm để khởi tạo sự kiện phân trang
     initializeEvents() {
+        console.log(this.eventInitialized);
+        if (this.eventInitialized) return; 
         this.pagination.addEventListener("click", (e) => {
             // Kiểm tra nếu phần tử click có class 'btn-paginations'
             if (e.target.classList.contains("btn-paginations")) {
@@ -26,11 +29,14 @@ class PaginationHelpers extends URLHelpers {
                 const clickedElement = e.target;
                 const page = clickedElement.getAttribute("data-page");
                 this.handlePaginationClick(clickedElement, page);
+                console.log("initializeEvents");
             }
         });
+        this.eventInitialized = true; // Đánh dấu là sự kiện đã được đăng ký
     }
     // Hàm chung để xử lý sự kiện click
     async handlePaginationClick(page, value, showAll = false, collapse = false) {
+        console.log("handlePaginationClick");
         if (showAll) {
             this.removeParam("page");
             this.addParamsToURL({ show_all: true });
@@ -164,7 +170,7 @@ class BaseLayoutHelpers extends URLHelpers {
         this.defaultParams = defaultParams;
         this.index = 0;
         this.callback = "";
-
+        this.eventInitialized = false;
         this.setColspan();
         if (this.defaultParams !== "") this.getDefaultParam();
     }
@@ -186,7 +192,8 @@ class BaseLayoutHelpers extends URLHelpers {
         const html = this.template(response);
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
-            new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.api);
+            new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.eventInitialized );
+            this.eventInitialized  = true;  
         }
         this.tbody.innerHTML = html;
         this.setLabel();
@@ -474,7 +481,8 @@ class LayoutHelpers extends BaseLayoutHelpers {
         }
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
-            new PaginationHelpers(res, this.renderUI.bind(this), this.pagination, this.api);
+            new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.eventInitialized );
+            this.eventInitialized  = true;  
         }
         this.tbody.innerHTML = html;
         this.setLabel();
