@@ -1,5 +1,6 @@
 import { RequestServerHelpers, URLHelpers } from "./core.js";
 import { checkOutput } from "./common.js";
+import { ChoiceHelpers } from "./form.js";
 import { check, formatApiUrl, numberFormatHelpers } from "./coreFunctions.js";
 
 /**Class có tác dụng phân trang
@@ -154,6 +155,7 @@ class BaseLayoutHelpers extends URLHelpers {
         const tbody = document.querySelector(this.tbody);
         if (!check(tbody, this.tbody)) return;
         this.tbody = tbody;
+        this.choice = new ChoiceHelpers(this.tbody);
         this.statusHeader = true;
         this.pagination = "#paginations";
         this.request = new RequestServerHelpers(this.api);
@@ -161,18 +163,23 @@ class BaseLayoutHelpers extends URLHelpers {
         this.colspan = 14;
         this.defaultParams = defaultParams;
         this.index = 0;
+        this.callback = "";
 
         this.setColspan();
         if (this.defaultParams !== "") this.getDefaultParam();
     }
 
     async renderUI() {
-        this.setLoading();
         let params = this.getParams();
         this.request.params = params;
         let response = await this.request.getData(this.api);
         this.insertHTMLInTable(response);
+
+        if(typeof this.callback  == "function"){
+            this.callback(response);
+        }
     }
+    
 
     insertHTMLInTable(response) {
         this.index = response.from;
@@ -199,14 +206,17 @@ class BaseLayoutHelpers extends URLHelpers {
     /**Hàm có tác dụng đếm số lượng của thẻ th rồi lưu vào colspan */
     setColspan() {
         const tableElement = this.tbody.closest("table");
-        const thead = tableElement.querySelector("thead");
-        const thElements = thead.querySelectorAll("th");
-        const numberOfThElements = thElements.length;
-        this.colspan = numberOfThElements;
+        if (tableElement) {
+            const thead = tableElement.querySelector("thead");
+            const thElements = thead.querySelectorAll("th");
+            const numberOfThElements = thElements.length;
+            this.colspan = numberOfThElements;
+        }
     }
 
     /**Hàm có tác dụng thực hiện loadding khi api chưa trả về dữ liệu*/
     setLoading() {
+        let tableElement = this.tbody.closest('table');
         let loadding = `
             <tr class="loading-data">
                 <td class="text-center" colspan="${this.colspan}">
@@ -216,35 +226,48 @@ class BaseLayoutHelpers extends URLHelpers {
                 </td>
             </tr>
         `;
+        if (!tableElement) {
+            loadding = `
+                <div class="text-center">
+                    <div class="spinner-border text-info spinner-border-sm" role="status"><span
+                            class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            `;
+        }
         this.tbody.innerHTML = loadding;
     }
 
     // hàm có tác dụng setAttribute vào tbody. Với dữ liệu được lấy từ thead
     setAttribute(attribute) {
         let tableElement = this.tbody.closest('table');
-        let headers = tableElement.querySelectorAll('thead th');
-        let rows = tableElement.querySelectorAll('tbody tr');
+        if (tableElement) {
+            let headers = tableElement.querySelectorAll('thead th');
+            let rows = tableElement.querySelectorAll('tbody tr');
 
-        rows.forEach(function (row) {
-            if (!row.classList.contains('none-data')) {
+            rows.forEach(function (row) {
                 let cells = row.querySelectorAll('td');
                 let headerIndex = 0; // Dùng để theo dõi vị trí của tiêu đề
 
                 cells.forEach(function (cell) {
-                    const colspan = parseInt(cell.getAttribute("colspan")) || 1; // Lấy số `colspan`, mặc định là 1 nếu không có
+                    if (!cell.classList.contains('none-data')) {
+                        const colspan = parseInt(cell.getAttribute("colspan")) || 1;
 
-                    // Lấy tiêu đề tương ứng từ `headers`
-                    let label = headers[headerIndex]?.textContent.trim();
-                    label = label?.toUpperCase();
+                        // Lấy tiêu đề tương ứng từ `headers`
+                        let label = headers[headerIndex]?.textContent.trim();
+                        label = label?.toUpperCase();
 
-                    // Set thuộc tính
-                    cell.setAttribute(attribute, label);
+                        // Set thuộc tính
+                        cell.setAttribute(attribute, label);
 
-                    // Tăng headerIndex dựa trên colspan
-                    headerIndex += colspan;
+                        // Tăng headerIndex dựa trên colspan
+                        headerIndex += colspan;
+                    } else {
+                        headerIndex++;
+                    }
                 });
-            }
-        });
+            });
+        }
     }
 
     // Hàm có tác dụng sét data layble cho thẻ td dựa theo thẻ th mục đích khi về màn hình mobile có thể hiển thị được
@@ -280,6 +303,30 @@ class BaseLayoutHelpers extends URLHelpers {
             }
         });
     }
+
+    /**Hàm có tác dụng lấy vị trí hiện tại của thanh cuộn và lưu vào localStorage */
+    saveScrollPosition() {
+        sessionStorage.setItem('scrollPosition', JSON.stringify({
+            x: window.scrollX,
+            y: window.scrollY
+        }));
+    }
+
+    /**Hàm có tác dụng cuộn chột đến vị trí đã lưu trong  localStorage*/
+    restoreScrollPosition() {
+        const restorePosition = JSON.parse(sessionStorage.getItem('scrollPosition'));; 
+        console.log(restorePosition, restorePosition.x);
+        if (restorePosition !== null) {
+            setTimeout(() => {
+                window.scrollTo({
+                    left: restorePosition.x, 
+                    top: restorePosition.y,  
+                    behavior: "smooth"
+                });
+            }, 500)
+        }
+    }
+    
 }
 
 class LayoutHelpers extends BaseLayoutHelpers {
@@ -318,7 +365,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
     /**Hàm có tác dụng gọi api
      */
     async renderUI() {
-        this.setLoading();
+        // this.setLoading();
         let params = this.getParams();
         if (Object.keys(params).length > 0) {
             this.api = this.removeAllParams(this.api);
@@ -352,6 +399,9 @@ class LayoutHelpers extends BaseLayoutHelpers {
         }
 
         this.insertHTMLInTable(res);
+        if(typeof this.callback  == "function"){
+            this.callback(response);
+        }
     }
 
     /**Hàm có tác dụng đổ ra dữ liệu
@@ -390,7 +440,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
                 if (this.statusHeader) {
                     row += `<td class="phase align-middle white-space-nowrap text-center">${index + 1}</td>`;
                 }
-                row += this.template(item); // Truyền 'item' vào hàm htmlTemplates
+                row += this.template(item, index); // Truyền 'item' vào hàm htmlTemplates
                 row += `</tr>`;
                 html += row;
 
@@ -401,7 +451,8 @@ class LayoutHelpers extends BaseLayoutHelpers {
                             if (item[col1] !== undefined && item[col2] !== undefined) {
                                 totals[sub.column] += Number(item[col1]) * Number(item[col2]);
                             }
-                        } else if (item[sub.column] !== undefined) {
+                        }
+                        else if (item[sub.column] !== undefined) {
                             totals[sub.column] += Number(item[sub.column]);
                         }
                     });
@@ -428,6 +479,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
         this.tbody.innerHTML = html;
         this.setLabel();
         this.setTitle();
+        this.restoreScrollPosition();
     }
 }
 

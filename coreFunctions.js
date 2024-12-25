@@ -61,6 +61,9 @@ function formatAPI(api) {
 
 /**Hàm có tác dụng format data khi gọi response trả về. */
 function formatDataResponse(res) {
+  if(res.totalPages){
+    return res.data;
+  }
   return res.data?.data?.length > 0 ? res.data.data : res.data;
 }
 

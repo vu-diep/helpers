@@ -1,3 +1,4 @@
+/**Tác giả: Vũ Hồng Điệp */
 import { formatApiUrl, check } from "./coreFunctions.js";
 // xác định message trả về
 const messageError = "error";
@@ -158,18 +159,27 @@ class URLHelpers {
   }
 
   /**Hàm có tác dụng lấy ra param trên url
-   * @param {string} [key=""] nhận vào key của param nếu bạn chỉ cần lấy 1 trường cụ thế. Nếu bạn muốn lấy tất cả param có trên url thì không cần quan tâm đến trường này
+   * @param {string} [key=""] nhận vào key của param nếu bạn chỉ cần lấy 1 trường cụ thế. Nếu bạn muốn lấy tất cả param có trên url thì không cần quan tâm đến trường này. Nếu bạn muốn lấy các params cụ thể thì truyền vào 1 mảng
    */
   getParams(key = "") {
     // Lấy URL hiện tại từ window.location
     const params = new URLSearchParams(window.location.search);
 
-    // Nếu key không phải là chuỗi rỗng, trả về giá trị của key
-    if (key !== "") {
+    // Nếu key là một chuỗi, trả về giá trị của key
+    if (typeof key === "string" && key !== "") {
       return params.get(key);
     }
 
-    // Nếu key rỗng, trả về toàn bộ danh sách các tham số
+    // Nếu key là một mảng, trả về danh sách các tham số dựa theo mảng key
+    if (Array.isArray(key)) {
+      const result = {};
+      key.forEach((paramKey) => {
+        result[paramKey] = params.get(paramKey);
+      });
+      return result;
+    }
+
+    // Nếu key không phải là chuỗi hoặc mảng, trả về toàn bộ danh sách tham số
     const paramList = {};
     for (let [paramKey, value] of params.entries()) {
       paramList[paramKey] = value;
@@ -269,7 +279,7 @@ class URLHelpers {
     this.url.searchParams.set(param, value);
 
     // Cập nhật URL trong thanh địa chỉ mà không tải lại trang
-    window.history.pushState({}, "", url);
+    window.history.pushState({}, "", this.url);
   }
 
   /**Hàm có tác dụng xóa toàn bộ param của 1 url được truyền vào
@@ -297,13 +307,12 @@ class ConfirmHelpers {
   constructor() {
     this.modal = document.getElementById("modalConfirmDelete");
     this.btnConfirm = this.modal.querySelector(".btn-confirm");
-    this.originalText = this.btnConfirm.textContent;
     this.modalBT = new bootstrap.Modal(this.modal, { keyboard: false });
     this.element = this.modal.querySelector(".confirm-message");
 
     this.btnConfirm.addEventListener("click", async (e) => {
-      let originalText = this.btnConfirm.textContent;
-      this.loading(true, originalText);
+      this.originalText = this.btnConfirm.textContent;
+      this.loading(true);
       this.config.success(e);
     });
   }

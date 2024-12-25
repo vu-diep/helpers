@@ -15,7 +15,7 @@ class ModalHelpers extends RequestServerHelpers {
         this.api = api;
         this.modalSelector = modalSelector;
         // lấy ra dữ liệu choices đã được khởi tạo
-        this.dataChoice = this.form.choice.choice;
+        this.dataChoice = this.form.dataChoice;
         this.priceFormat = [];
         this.dateFormat = [];
         this.modal = null;
@@ -94,7 +94,9 @@ class ModalHelpers extends RequestServerHelpers {
                 console.log(`Không tìm thấy dữ liệu tại id: ${id}. Vui kiểm tra lại.`);
                 return;
             }
-            this.fillFormWithData(response); // Đổ dữ liệu vào form
+            await this.form.setFormData(response); // Đổ dữ liệu vào form
+            this.hideLoading();
+
             // Khởi tạo sự kiện đóng modal
             this.resetModal();
         } catch (error) {
@@ -152,61 +154,18 @@ class ModalHelpers extends RequestServerHelpers {
         }
     }
 
-    // hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
-    applyAttributeData(item, value) {
-        // Kiểm tra loại của input
-        if (item.type === "radio" || item.type === "checkbox") {
-            if (String(item.value) === String(value)) {
-                item.checked = true; // Đánh dấu input
-            } else {
-                item.checked = false; // Bỏ đánh dấu nếu không khớp
-            }
-        } else if (item.hasAttribute("data-choice")) {
-            let id = item.getAttribute("id");
-            let choiceInstance = this.dataChoice[`#${id}`];
-            if (choiceInstance) {
-                choiceInstance.setChoiceByValue(String(value));
-            } else {
-                console.error(`Choice instance for #${id} is not initialized.`);
-            }
-        } else {
-            // Xử lý các loại input khác
-            if (this.priceFormat.includes(name)) {
-                item.value = numberFormatHelpers(value);
-            } else if (this.dateFormat.includes(name)) {
-                item.value = dateTimeFormat(value);
-            } else {
-                item.value = value;
-            }
-        }
-    }
-
     /** Đổ dữ liệu mặc định vào form */
     async fillFormWithDefaults(dataDefault) {
         dataDefault.forEach(async (item) => {
             const element = this.form.form.querySelector(item.dom);
             if (element) {
                 let value = typeof item.value === "function" ? await item.value() : item.value;
-                this.applyAttributeData(element, value)
+                this.form.applyAttributeData(element, value)
             } else {
                 console.error("Không có phần tử này: " + item.dom + " trong DOM");
             }
         });
     }
-
-    /** Đổ dữ liệu từ API vào form */
-    fillFormWithData(data) {
-        const elements = this.form.form.elements;
-        for (let item of elements) {
-            const name = item.getAttribute("name");
-            if (name && data.hasOwnProperty(name)) {
-                let value = data[name];
-                this.applyAttributeData(item, value)
-            }
-        }
-        this.hideLoading();
-    }
-
 
     /** Reset modal khi đóng */
     resetModal() {
@@ -264,12 +223,18 @@ class ValidateHelpers {
                 if (item.checked) {
                     data[key] = item.value.trim();
                 }
-            } else {
+            } else if (item.tagName === "SELECT" && item.multiple) {
+                const id = item.getAttribute("id");
+                const choiceSelect = this.form.dataChoice[`#${id}`];
+                const value = choiceSelect.getValue().map(item => item.value);;
+                data[key] = value;
+            }
+            else {
                 // Xử lý các input khác
                 data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
             }
         }
-
+        console.log(data);
         return data;
     }
 
@@ -279,15 +244,11 @@ class ValidateHelpers {
      * @returns {Array|Boolean} Trả về mảng dữ liệu các hàng nếu thành công, false nếu có lỗi
      */
     validateRow(tbodySelector) {
-        const tbodyElement = document.querySelector(tbodySelector);
-        if (!check(tbodyElement, tbodyElement)) return;
-
-        const rows = tbodyElement.querySelectorAll("tr");
+        const rows = tbodySelector.querySelectorAll("tr");
         const data = [];
 
         for (let row of rows) {
             const dom = this.collectRowElements(row);
-
             // Thực hiện validate cho mỗi hàng
             if (!this.runValidation(dom)) return false;
 
@@ -308,7 +269,7 @@ class ValidateHelpers {
      * @returns {Object} object chứa các thẻ DOM đã thu thập
      */
     collectFormElements(textSelect) {
-        const elements = [...this.form.querySelectorAll("select, input, textarea")];
+        const elements = [...this.form.form.querySelectorAll("select, input, textarea")];
         const dom = {};
 
         elements.forEach((item) => {
@@ -338,8 +299,7 @@ class ValidateHelpers {
      */
     collectRowElements(row) {
         const elements = [...row.querySelectorAll("select, input, textarea")];
-        const rowData = {};
-
+        const rowData = [];
         elements.forEach((item) => {
             let name = item.getAttribute("name");
             if (name) {
@@ -439,12 +399,10 @@ class SelectHelpers {
     // Hàm xử lý chung cho dữ liệu trả về và thiết lập cho Choices
     processApiData(res, label, labelDefault) {
 
-        if (res.status !== 200) {
-            showErrorMD("Không có dữ liệu bạn cần tìm");
-            return [{ value: "", label: labelDefault }];
-        }
         let data = formatDataResponse(res);
-
+        if (data.length == 0) {
+            return [{ value: "Không có dữ liệu", label: labelDefault }];
+        }
         return data.map(item => {
             let labelValue = "";
 
@@ -467,7 +425,7 @@ class SelectHelpers {
             const customProps = this.getCustomProperties(item);
             return {
                 label: labelValue,
-                value: item[this.value],
+                value: String(item[this.value]),
                 customProperties: customProps,
             };
         });
@@ -533,8 +491,6 @@ class SelectHelpers {
         });
     }
 
-
-
     /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ khác
        * @param {string} selectChange ID, Class của thẻ được chọn
        * @param {string} receive ID, Class của thẻ được nhận. Nếu bạn có nhiều nơi cần nhận dữ liệu đồng nghĩa với việc bạn đã lưu dữ liệu vào customProperties thì hãy truyền receive theo cách sau:
@@ -560,6 +516,7 @@ class SelectHelpers {
         }
         // Hàm xử lý cập nhật dữ liệu vào domReceive hoặc danh sách domReceive
         const updateReceive = (data) => {
+
             if (isReceiveArray) {
                 receive.forEach((item) => {
                     const dataCustomProperties = data[item.value];
@@ -582,22 +539,17 @@ class SelectHelpers {
                 return;
             }
             if (api) {
-                // Hiển thị trạng thái "Đang tìm kiếm"
-                this.updateDomReceive(domReceive, "Đang tìm kiếm");
                 try {
                     // Gửi yêu cầu GET đến API
-                    const res = await this.getData(`${api}?${key}=${e.target.value}`);
+                    const res = await this.request.getData(`${api}?${key}=${e.target.value}`);
                     let dataToDisplay = "Không tìm thấy dữ liệu";
-                    if (res.status === 200) {
-                        const data = formatDataResponse(res);
-                        if (data) {
-                            dataToDisplay = data[value];
-                        }
+                    const data = formatDataResponse(res);
+                    if (data.length > 0) {
+                        dataToDisplay = data[value];
                     }
                     updateReceive(dataToDisplay);
                 } catch (error) {
                     console.error("Lỗi khi gọi API: ", error);
-                    this.updateDomReceive(domReceive, "Lỗi khi tìm kiếm dữ liệu");
                 }
             } else if (isReceiveArray) {
                 const dataCustomProperties = selectedChoice.customProperties;
@@ -681,6 +633,7 @@ class SelectHelpers {
      *  Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng lúc này label của bạn sẽ là value - value ....
      *  Trong trường hợp bạn muốn cấu hình message thì bạn có thể truyền vào 1 object như sau
      *  {"Giá trị 1": GT1, "Giá trị 2": GT2,}
+     *  @param {string} labelDefault là phần value của thẻ option luôn được hiển thị mặc định
      * @param {string} params là 1 object chứa các tùy chọn kèm theo khi gửi request
      * @param {callback} getParams là 1 callback dùng để lấy các điều kiện phụ trước khi gửi dữ liệu
      * VD:
@@ -694,7 +647,7 @@ class SelectHelpers {
      * customProperties  là mảng các chứa tên các trường phụ cần lưu vào customProperties.
      * value là phần ky khi api trả về nhận vào đoạn text của thẻ option, Thông thường nó sẽ là id: Nếu bạn muốn sửa lại nó thì ghi đè lại nó nhé :)
      */
-    async selectMore(select, api, key, label, params = {}, getParams = null) {
+    async selectMore(select, api, key, label, labelDefault, params = {}, getParams = null) {
         let myTimeOut = null;
         let selectDom = document.querySelector(select);
         let choiceSelect = this.dataChoice[select];
@@ -714,7 +667,7 @@ class SelectHelpers {
                     this.request.params = { [key]: query, ...getParam, ...params };
                     let res = await this.request.getData(api);
                     let dataChoice = this.processApiData(res, label, "");
-
+                    dataChoice.unshift({ value: "", label: labelDefault });
                     choiceSelect.setChoices(dataChoice, "value", "label", true); // Đổ dữ liệu mới vào select
                     choiceSelect._handleLoadingState(false); // Tắt trạng thái loading
                     choiceSelect.input.element.focus(); // Trả lại focus cho ô input của Choices
@@ -745,16 +698,15 @@ class SelectHelpers {
             console.error("Không có đối tượng choices này: " + select);
             return;
         }
-        choiceSelect._handleLoadingState(true);
+        // alert("hi")
+        // choiceSelect._handleLoadingState(true);
         let res = await this.request.getData(api);
-        if (res.status === 200) {
-            let dataChoice = this.processApiData(res, label, labelDefault);
-            // thêm giá trị mặc định
-            dataChoice.unshift({ value: "", label: labelDefault });
-            // trả dữ liệu về thẻ select
-            choiceSelect.setChoices(dataChoice, "value", "label", true);
-        }
-        choiceSelect._handleLoadingState(false);
+        let dataChoice = this.processApiData(res, label, labelDefault);
+        // thêm giá trị mặc định
+        dataChoice.unshift({ value: "", label: labelDefault });
+        // trả dữ liệu về thẻ select
+        choiceSelect.setChoices(dataChoice, "value", "label", true);
+        // choiceSelect._handleLoadingState(false);
     }
 }
 
@@ -762,10 +714,10 @@ class SelectHelpers {
 class DatePickerHelpers {
     constructor(form) {
         this.form = form;
-        // Lưu trữ các đối tượng daterangepicker đã khởi tạo
         this.dataDate = {};
         moment.locale('vi');
-        this.typeFormat = 'D [Tháng] M, YYYY';
+        this.typeFormat = 'D [Tháng] M, YYYY'; // Định dạng ngày
+        this.timeFormat = 'HH:mm:ss';         // Định dạng thời gian
     }
 
     // Hàm callback để thiết lập giá trị ngày cho input
@@ -796,21 +748,21 @@ class DatePickerHelpers {
         };
     }
 
-    /**Hàm khởi tạo daterangepicker và lưu đối tượng vào dataDate tham khảo cách sử dụng ở hàm initialize
-     * @param {string} selector class của thẻ input cần khởi tạo
-     * @param {date} start thời gian bắt đầu
-     * @param {object} [options] các cấu hình cho daterangepicker
-     */
+    // Hàm kiểm tra ngày hợp lệ theo định dạng
+    isValidDate(value, format) {
+        return moment(value, format, true).isValid();
+    }
+
+    // Hàm khởi tạo daterangepicker
     initDatePicker(selector, start, options = {}) {
         $(this.form).find(selector).each((index, input) => {
             const $input = $(input);
-            // Tắt gợi ý từ lần chọn trước đó
             $input.attr('autocomplete', 'off');
             $input.daterangepicker({
                 startDate: start,
-                singleDatePicker: options.singleDatePicker || false, // Chọn một ngày nếu có
-                maxDate: options.maxDate || null, // Giới hạn tối đa nếu có
-                minDate: options.minDate || null, // Giới hạn tối thiểu nếu có
+                singleDatePicker: options.singleDatePicker || false,
+                maxDate: options.maxDate || null,
+                minDate: options.minDate || null,
                 locale: {
                     format: this.typeFormat,
                     applyLabel: "Áp dụng",
@@ -825,7 +777,57 @@ class DatePickerHelpers {
                     ],
                     firstDay: 1
                 },
-                ranges: this.getRanges(start) // Áp dụng ranges phù hợp với giá trị start
+                ranges: this.getRanges(start)
+            });
+
+            // Kiểm tra giá trị khi người dùng nhập thủ công
+            $input.on('blur', () => {
+                const value = $input.val();
+                if (!this.isValidDate(value, this.typeFormat)) {
+                    // Nếu giá trị không hợp lệ, đặt lại giá trị mặc định
+                    $input.val(start.format(this.typeFormat));
+                }
+            });
+        });
+    }
+
+    // Hàm khởi tạo timepicker
+    initTimePicker(selector) {
+        $(this.form).find(selector).each((index, input) => {
+            const $input = $(input);
+            $input.attr('autocomplete', 'off');
+
+            // Đặt giá trị mặc định là thời gian hiện tại
+            const defaultTime = moment().format(this.timeFormat);
+            $input.val(defaultTime);
+
+            $(input).daterangepicker({
+                timePicker: true,              // Bật tính năng chọn giờ
+                timePicker24Hour: true,        // Định dạng 24 giờ
+                timePickerSeconds: true,       // Hiển thị giây
+                singleDatePicker: true,        // Chỉ cho phép chọn 1 giá trị
+                showDropdowns: false,          // Ẩn các dropdown năm/tháng
+                autoApply: true,               // Tự động áp dụng khi chọn thời gian
+                opens: 'center',               // Vị trí hiển thị
+                locale: {
+                    customRangeLabel: "Giờ:phút:giây",
+                    format: this.timeFormat,   // Chỉ định dạng thời gian
+                    applyLabel: 'Áp dụng',
+                    cancelLabel: 'Hủy',
+                },
+                isInvalidDate: () => true,     // Loại bỏ mọi giá trị ngày tháng
+                ranges: {},                    // Không thêm các tùy chọn range
+            }, function (start) {
+                $input.val(start.format('HH:mm:ss')); // Cập nhật thời gian khi chọn
+            });
+
+            // Khi người dùng nhập thủ công
+            $input.on('blur', () => {
+                const value = $input.val();
+                if (!moment(value, this.timeFormat, true).isValid()) {
+                    // Nếu không hợp lệ, đặt lại thời gian hiện tại
+                    $input.val(defaultTime);
+                }
             });
         });
     }
@@ -837,6 +839,7 @@ class DatePickerHelpers {
         this.initDatePicker('input.start-date-picker-single', moment(), { singleDatePicker: true });
         this.initDatePicker('input.start-date-picker-max-today', moment().subtract(7, 'days'), { maxDate: moment() });
         this.initDatePicker('input.start-date-picker-min-today', moment(), { minDate: moment() });
+        this.initTimePicker('input.time-picker'); // Khởi tạo timepicker
     }
 }
 
@@ -865,8 +868,9 @@ class ChoiceHelpers {
                     console.error("Thẻ select bắt buộc phải có id mới khởi tạo được choices !", item);
                     return; // Bỏ qua phần tử này và không khởi tạo Choices
                 }
+                choiceOptions.removeItemButton = item.multiple ? true : false;
                 // Khởi tạo Choices cho phần tử
-                const choiceInstance = new Choices(item, choiceOption);
+                const choiceInstance = new Choices(item, choiceOptions);
                 // Lưu trữ thông tin về phần tử và đối tượng Choices
                 this.choice[`#${item.id}`] = choiceInstance;
             }
@@ -896,7 +900,13 @@ class ResetHelpers {
             let id = item.getAttribute("id");
             // Tìm đối tượng Choices
             let choiceInstance = this.dataChoice[`#${id}`];
-            if (choiceInstance) choiceInstance.setChoiceByValue(""); // Xóa các lựa chọn hiện tại
+            if (choiceInstance) {
+                // Xóa các lựa chọn hiện tại
+                choiceInstance.setChoiceByValue("");
+                if (item.multiple) {
+                    choiceInstance.removeActiveItems();
+                }
+            }
         } else {
             if (item.tagName === "INPUT" || item.tagName === "TEXTAREA")
                 item.value = ""; // Đặt lại giá trị của các phần tử input, select, textarea
@@ -916,9 +926,11 @@ class ResetHelpers {
             if (className) {
                 const checkDatePicker = className.split(" ").some(classItem => classItem.startsWith('start-date-picker'));
                 if (checkDatePicker) continue;
-                // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
-                if (this.notRest.includes(item.name)) continue;
             }
+            // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
+            if (this.notRest.includes(item.name)) {
+                continue
+            };
             // Không reset với input có type là radio hoặc checkbox
             if (item.type === "radio" || item.type === "checkbox") continue;
             this.reset(item);
@@ -951,7 +963,6 @@ class BaseFormHelpers extends RequestServerHelpers {
 
         this.layout = "";
         this.debug = "";
-        this.param = {};
         this.priceFormat = [];
         this.dateFormat = [];
         this.subdata = {};
@@ -965,6 +976,7 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.choice = new ChoiceHelpers(this.form);
         // mặc định khởi tạo choice
         this.choice.startChoice();
+        this.dataChoice = this.choice.choice;
         this.datePicker = new DatePickerHelpers(this.form);
         // mặc định khởi tạo date picker
         this.datePicker.initialize();
@@ -972,7 +984,7 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.select = new SelectHelpers(this);
 
         this.event = new EventHelpers(this.form);
-        this.validate = new ValidateHelpers(this.form, validations);
+        this.validate = new ValidateHelpers(this, validations);
         this.modal = new ModalHelpers(this, modalSelector, this.api);
         this.reset = new ResetHelpers(this);
         this.file = new FileHelpers();
@@ -980,6 +992,7 @@ class BaseFormHelpers extends RequestServerHelpers {
 
     }
 
+    // Hàm có tác dụng lấy dữ liệu trong form
     getFormData() {
         let data = [];
         let selects = this.form.querySelectorAll("select");
@@ -1001,27 +1014,64 @@ class BaseFormHelpers extends RequestServerHelpers {
         return data;
     }
 
+    /**
+     * hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
+     * @param {object} data Dữ liệu cần sét
+     */
     setFormData(data) {
         // Lấy tất cả các phần tử trong form
         const elements = this.form.elements;
 
-        for (let item of elements) {
-            let name = item.getAttribute("name");
+        for (let dom of elements) {
+            let name = dom.getAttribute("name");
             // tìm kiếm và lấy dữ liệu của data dựa vào name thẻ
             if (name && data.hasOwnProperty(name)) {
                 let value = data[name];
-
-                // Kiểm tra nếu phần tử là Choices instance và cập nhật Choices
-                if (item.hasAttribute("data-choice")) {
-                    let id = item.getAttribute("id");
-                    let choiceInstance = this.choice.choice[`#${id}`];
-                    choiceInstance.setChoiceByValue(String(value));
-                } else {
-                    item.value = value;
-                }
+                this.applyAttributeData(dom, value)
             }
         }
     }
+
+    /**
+     * hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
+     * @param {dom} dom Thẻ cần sét dữ liệu
+     * @param {*} value Dữ liệu được sét vào thẻ
+     */
+    applyAttributeData(dom, value) {
+        // Kiểm tra loại của input
+
+        let name = dom.name;
+        if (dom.type === "radio" || dom.type === "checkbox") {
+            if (String(dom.value) === String(value)) {
+                dom.checked = true; // Đánh dấu input
+            } else {
+                dom.checked = false; // Bỏ đánh dấu nếu không khớp
+            }
+        } else if (dom.hasAttribute("data-choice")) {
+            let id = dom.getAttribute("id");
+            let choiceInstance = this.dataChoice[`#${id}`];
+            if (choiceInstance) {
+                choiceInstance.setChoiceByValue(String(value));
+                if (dom.multiple && value.length > 0) {
+                    value.forEach(item => {
+                        choiceInstance.setChoiceByValue(String(item));
+                    })
+                }
+            } else {
+                console.error(`Không tìm thấy id này #${id} ở trong form.`);
+            }
+        } else {
+            // Xử lý các loại input khác
+            if (this.priceFormat.includes(name)) {
+                dom.value = numberFormatHelpers(value);
+            } else if (this.dateFormat.includes(name)) {
+                dom.value = dateTimeFormat(value);
+            } else {
+                dom.value = value;
+            }
+        }
+    }
+
     /**
      * Định dạng dữ liệu (price, date)
      */
@@ -1060,13 +1110,15 @@ class BaseFormHelpers extends RequestServerHelpers {
         }
     }
 
-    showError(errorData) {
-
-        if (errorData.status === 403 || errorData.status === 422) {
-            this.showErrorResponse(errorData.message);
+    /**Hiển thị lỗi sau khi submit
+     * @param {object} responseError object lỗi được trả về
+     */
+    showError(responseError) {
+        if (responseError.status === 403 || responseError.status === 422) {
+            this.showErrorResponse(responseError.message);
         }
         else {
-            showErrorMD(errorData.message);
+            showErrorMD(responseError.message);
         }
     }
 
@@ -1088,11 +1140,13 @@ class BaseFormHelpers extends RequestServerHelpers {
             this.file.exportExcel(api, this.exportExcel.name, "");
         }
     }
+
     /**
     * Hiển thị lỗi cho các trường trong form
     */
     showErrorResponse(errors) {
-
+        // Thực hiện xóa toàn bộ lỗi trước khi gắn lại lỗi mới
+        removeAllValidationClasses(this.form);
         for (let name in errors) {
             const element = this.form.querySelector(`[name="${name}"]`);
             if (element) {
@@ -1245,6 +1299,7 @@ class FormTableHelpers extends BaseFormHelpers {
 
         this.initEventListeners();
         this.callback = "";
+        this.formInTable = false;
     }
 
     initEventListeners() {
@@ -1310,8 +1365,9 @@ class FormTableHelpers extends BaseFormHelpers {
         btnLoading(btnSendData, true);
 
         this.event.click(this.btnSendData, async () => {
-            this.dataTotal = this.formInTable ? this.validate.validateRow(this.formInTable) : this.dataTotal;
-
+            this.dataTotal = this.formInTable ? this.validate.validateRow(this.domTbody) : this.dataTotal;
+            console.log(this.dataTotal);
+            return
             if (this.dataTotal && this.dataTotal.length > 0) {
                 if (Object.keys(this.subdata).length > 0) {
                     this.dataTotal = { ...this.dataTotal, ...this.subdata };
