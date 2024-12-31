@@ -18,7 +18,10 @@ class ModalHelpers extends RequestServerHelpers {
         this.dataChoice = this.form.dataChoice;
         this.priceFormat = [];
         this.dateFormat = [];
-        this.modal = null;
+        if (this.modalSelector) {
+            this.modal = document.querySelector(this.modalSelector);
+            if (!check(this.modal, this.modalSelector)) return;
+        }
         this.loading = null;
         this.newModal = null;
     }
@@ -35,9 +38,6 @@ class ModalHelpers extends RequestServerHelpers {
         let isModalInitialized = false; // Cờ kiểm tra để tránh gọi API nhiều lần
 
         const openModal = () => {
-            this.modal = document.querySelector(this.modalSelector);
-            if (!check(this.modal, this.modalSelector)) return;
-
             this.initializeModal();
             this.showModal();
             this.setLoading();
@@ -74,34 +74,37 @@ class ModalHelpers extends RequestServerHelpers {
         }
     }
 
+    /**Hàm có tác dụng :
+     * Khởi tạo modal
+     * Mở modal
+     * gọi api lấy data để đưa vào form
+     */
+
+    async showModalWithData(api) {
+        this.initializeModal();
+        this.showModal();
+
+        // Lấy dữ liệu từ API
+        const response = await this.getData(api);
+        return response;
+    }
+
     /** Khởi tạo modal edit và đổ dữ liệu từ API 
      * @param {Object} params nhận vào object param
     */
     async startModalEdit(id, params = {}) {
         try {
-            this.modal = document.querySelector(this.modalSelector);
-            if (!check(this.modal, this.modalSelector)) return;
-
-            this.params = params;
-            this.initializeModal();
-            this.showModal();
             this.setLoading();
-
-            // Lấy dữ liệu từ API
+            this.params = params;
             const formatAPI = this.api + "/" + id;
-            const response = await this.getData(formatAPI);
-            if (!response || Object.keys(response).length === 0) {
-                console.log(`Không tìm thấy dữ liệu tại id: ${id}. Vui kiểm tra lại.`);
-                return;
-            }
+            const response = await this.showModalWithData(formatAPI);
             await this.form.setFormData(response); // Đổ dữ liệu vào form
             this.hideLoading();
 
             // Khởi tạo sự kiện đóng modal
             this.resetModal();
         } catch (error) {
-            console.error("Error during startModalEdit:", error);
-            showErrorMD("Có lỗi xảy ra, vui lòng thử lại sau.");
+            console.error("Có lỗi xảy ra:", error);
         }
     }
 
@@ -234,7 +237,6 @@ class ValidateHelpers {
                 data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
             }
         }
-        console.log(data);
         return data;
     }
 
@@ -1073,19 +1075,37 @@ class BaseFormHelpers extends RequestServerHelpers {
     }
 
     /**
-     * Định dạng dữ liệu (price, date)
+     * @param {boolean} [statusTable=false] Trạng thái khi format dữ liệu cho table form. Mặc định là không
+     * Định dạng dữ liệu trước khi gửi lên backend (price, date)
+     * từ 500,000 thành 500000
      */
-    formatData(data) {
-        this.formatFields(data, this.priceFormat, removeCommasHelpers);
-        this.formatFields(data, this.dateFormat, convertDateFormatHelpers);
+    formatData(data, statusTable = false) {
+        if (!statusTable) {
+            this.formatFields(data, this.priceFormat, removeCommasHelpers);
+            // this.formatFields(data, this.dateFormat, convertDateFormatHelpers);
+        } else {
+            this.formatFieldsTable(data, this.priceFormat, removeCommasHelpers);
+            // this.formatFieldsTable(data, this.dateFormat, convertDateFormatHelpers);
+        }
+        return data;
     }
 
+    // Thực hiện format dữ liệu
     formatFields(data, fields, formatFunction) {
         fields.forEach((name) => {
             if (data.hasOwnProperty(name)) {
                 data[name] = formatFunction(data[name]);
             }
         });
+        return data;
+    }
+
+    // Thực hiện format cho bảng
+    formatFieldsTable(data, fields, formatFunction) {
+        data.forEach((item) => {
+            this.formatFields(item, fields, formatFunction);
+        });
+        return data;
     }
 
     /**
@@ -1135,9 +1155,14 @@ class BaseFormHelpers extends RequestServerHelpers {
             this.reset.resetForm();
         }
 
-        if (this.exportExcel) {
-            const api = `${this.exportExcel.api}${res.data[this.exportExcel.key]}`;
-            this.file.exportExcel(api, this.exportExcel.name, "");
+        this.exportFileAfterSenData(res);
+    }
+
+    // Hàm có tác dụng xuất file sau khi gửi dữ liệu
+    exportFileAfterSenData(response) {
+        if (this.exportExcel && response) {
+            const api = `${this.exportExcel.api}${response}`;
+            this.file.exportExcel("", api, this.exportExcel.name);
         }
     }
 
@@ -1280,7 +1305,10 @@ class FormHelpers extends BaseFormHelpers {
 }
 
 
-/**class thao tác với form chứa tabel. Tức là khi bạn ấn submit form mà chưa muốn gọi api giửi đi mà muốn hiển thị lại giao diện cho ngừơi dùng xem*/
+/**class thao tác với form chứa tabel. Tức là khi bạn ấn submit form mà chưa muốn gọi api giửi đi mà muốn hiển thị lại giao diện cho ngừơi dùng xem
+ * Thực hiện khởi tạo form như bình thường
+ * Trong trường hợp table của bạn có chứa các ô input để nhập dữ liệu thì cần sét thuộc tính formInTable = true
+*/
 class FormTableHelpers extends BaseFormHelpers {
     constructor(formSelector, validations, api, layout, template, modal, debug = false) {
         super(api, formSelector, validations, modal);
@@ -1300,6 +1328,11 @@ class FormTableHelpers extends BaseFormHelpers {
         this.initEventListeners();
         this.callback = "";
         this.formInTable = false;
+
+        this.resetForm = true;
+        this.resetTable = true;
+        this.statusModal = true;
+        this.statusLayout = true;
     }
 
     initEventListeners() {
@@ -1311,6 +1344,7 @@ class FormTableHelpers extends BaseFormHelpers {
         return this.index++;
     }
 
+    // Hàm có tác dụng đưa dữ liệu vào bảng
     handleFormSubmit() {
         this.event.submit(this.form, (e) => {
             const data = this.validate.validateForm(true);
@@ -1318,12 +1352,13 @@ class FormTableHelpers extends BaseFormHelpers {
                 data.id = this.generateUniqueId();
                 this.renderRowInTable(data);
                 this.dataTotal.push(data);
-                this.resetFormInputs();
                 if (this.callback) this.callback();
+                this.reset.resetForm();
             }
         });
     }
 
+    // Hàm có tác dụng thực hiện đưa dữ liệu đã được gép với html và đưa vào dom
     renderRowInTable(data) {
         const html = `
             <tr id="${data.id}">
@@ -1339,6 +1374,7 @@ class FormTableHelpers extends BaseFormHelpers {
         this.addDeleteEventListeners();
     }
 
+    // Lắng nghe sự kiện xóa dữ liệu ở trong bảng
     addDeleteEventListeners() {
         this.domTbody.querySelectorAll('.deleteBtn').forEach(button => {
             button.addEventListener('click', (event) => {
@@ -1349,7 +1385,9 @@ class FormTableHelpers extends BaseFormHelpers {
         });
     }
 
+    // Thực hiện xóa dữ liệu trong bảng và trong mảng dataTotal
     deleteDataFromTable(id) {
+        console.log(this.dataTotal);
         this.dataTotal = this.dataTotal.filter(item => item.id !== id);
         const row = this.domTbody.querySelector(`tr[id="${id}"]`);
         if (row) {
@@ -1362,74 +1400,40 @@ class FormTableHelpers extends BaseFormHelpers {
         if (!check(btnSendData, this.btnSendData)) return;
 
         const btnSendDataTextContent = btnSendData.textContent;
-        btnLoading(btnSendData, true);
-
-        this.event.click(this.btnSendData, async () => {
-            this.dataTotal = this.formInTable ? this.validate.validateRow(this.domTbody) : this.dataTotal;
-            console.log(this.dataTotal);
-            return
-            if (this.dataTotal && this.dataTotal.length > 0) {
+        btnSendData.addEventListener("click", async () => {
+            btnLoading(btnSendData, true);
+            let dataTotal = this.formInTable ? this.validate.validateRow(this.domTbody) : this.dataTotal;
+            if (dataTotal && dataTotal.length > 0) {
                 if (Object.keys(this.subdata).length > 0) {
-                    this.dataTotal = { ...this.dataTotal, ...this.subdata };
+                    dataTotal = { ...dataTotal, ...this.subdata };
                 }
-
-                this.formatDataBeforeSend();
-                const response = await this.sendFormData(this.dataTotal, this.method, this.debug);
+                // Thực hiện format dữ liệu trước khi gửi lên backend, nếu người dùng ghi đè lại thuộc tính this.priceFormat hoặc this.dateFormat
+                dataTotal = this.formatData(dataTotal, true);
+                const response = await this.sendFormData(dataTotal, this.method, this.debug);
 
                 if (this.responseHandler && response && this.responseHandler.status === response.status) {
                     await this.responseHandler.function(response);
                     this.updateTableData(response.data);
                 }
-
                 if (response && response.status == 200 && response.status < 400) {
-
                     this.handleSuccessfulResponse(response.data);
                 } else {
-                    this.showError(res);
+                    this.showError(response);
                     return false;
                 }
             }
-        });
-        btnLoading(btnSendData, false, btnSendDataTextContent);
+            btnLoading(btnSendData, false, btnSendDataTextContent);
+        })
     }
-
-    formatDataBeforeSend() {
-        this.priceFormat.forEach(name => {
-            if (this.dataTotal.hasOwnProperty(name)) {
-                this.dataTotal[name] = removeCommasHelpers(this.dataTotal[name]);
-            }
-        });
-
-        this.dateFormat.forEach(name => {
-            if (this.dataTotal.hasOwnProperty(name)) {
-                this.dataTotal[name] = convertDateFormatHelpers(this.dataTotal[name]);
-            }
-        });
-    }
-
-    exportDataIfNecessary(responseData) {
-        if (this.exportExcel && responseData) {
-            const api = `${this.exportExcel.api}${responseData}`;
-            this.file.exportExcel("", api, this.exportExcel.name);
-        }
-    }
-
-    resetFormInputs() {
-        this.reset.resetForm();
-    }
-
-    clearTable() {
-        this.domTbody.innerHTML = "";
-    }
-
     handleSuccessfulResponse(responseData) {
-        if (this.resetForm) this.resetFormInputs();
-        if (this.resetTable) this.clearTable();
+        if (this.resetForm) this.reset.resetForm();
+        if (this.resetTable) this.domTbody.innerHTML = "";
         if (this.statusModal) this.modal.hideModal();
         if (this.statusLayout) this.layout.renderUI();
         this.dataTotal = [];
         this.index = 0;
-        this.exportDataIfNecessary(responseData);
+        showMessageMD(responseData.message);
+        this.exportFileAfterSenData(responseData);
     }
 
     updateTableData(responseData) {

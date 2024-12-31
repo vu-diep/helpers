@@ -20,7 +20,6 @@ class PaginationHelpers extends URLHelpers {
     }
     // Hàm để khởi tạo sự kiện phân trang
     initializeEvents() {
-        console.log(this.eventInitialized);
         if (this.eventInitialized) return; 
         this.pagination.addEventListener("click", (e) => {
             // Kiểm tra nếu phần tử click có class 'btn-paginations'
@@ -29,14 +28,12 @@ class PaginationHelpers extends URLHelpers {
                 const clickedElement = e.target;
                 const page = clickedElement.getAttribute("data-page");
                 this.handlePaginationClick(clickedElement, page);
-                console.log("initializeEvents");
             }
         });
         this.eventInitialized = true; // Đánh dấu là sự kiện đã được đăng ký
     }
     // Hàm chung để xử lý sự kiện click
     async handlePaginationClick(page, value, showAll = false, collapse = false) {
-        console.log("handlePaginationClick");
         if (showAll) {
             this.removeParam("page");
             this.addParamsToURL({ show_all: true });
@@ -189,15 +186,14 @@ class BaseLayoutHelpers extends URLHelpers {
 
     insertHTMLInTable(response) {
         this.index = response.from;
-        const html = this.template(response);
+        const html = this.template(response, this.index);
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
             new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.eventInitialized );
             this.eventInitialized  = true;  
         }
         this.tbody.innerHTML = html;
-        this.setLabel();
-        this.setTitle();
+        this.setLabelAndTitle();
     }
 
     /**Hàm có tác dụng lấy ra params mặc định */
@@ -246,7 +242,7 @@ class BaseLayoutHelpers extends URLHelpers {
     }
 
     // hàm có tác dụng setAttribute vào tbody. Với dữ liệu được lấy từ thead
-    setAttribute(attribute) {
+    setAttribute(attributes) {
         let tableElement = this.tbody.closest('table');
         if (tableElement) {
             let headers = tableElement.querySelectorAll('thead th');
@@ -265,7 +261,13 @@ class BaseLayoutHelpers extends URLHelpers {
                         label = label?.toUpperCase();
 
                         // Set thuộc tính
-                        cell.setAttribute(attribute, label);
+                        if (Array.isArray(attributes)) {
+                            attributes.forEach(attribute => {
+                                cell.setAttribute(attribute, label);
+                            });
+                        } else {
+                            cell.setAttribute(attributes, label);
+                        }
 
                         // Tăng headerIndex dựa trên colspan
                         headerIndex += colspan;
@@ -277,16 +279,15 @@ class BaseLayoutHelpers extends URLHelpers {
         }
     }
 
-    // Hàm có tác dụng sét data layble cho thẻ td dựa theo thẻ th mục đích khi về màn hình mobile có thể hiển thị được
-    setLabel() {
+    // Hàm có tác dụng sét data lable và title cho thẻ td dựa theo thẻ th mục đích khi về màn hình mobile có thể hiển thị được
+    setLabelAndTitle() {
         let tableElement = this.tbody.closest('table');
+        let attributes = ['title'];
         if (tableElement && tableElement.classList.contains('table-config')) {
-            this.setAttribute('data-label');
+            attributes.push('data-label');
         }
-    }
-    // Hàm có tác dụng set title cho các thẻ td
-    setTitle() {
-        this.setAttribute('title');
+        this.setAttribute(attributes);
+
     }
 
     /**hàm có tác dụng lắng nghe sự kiện click của 1 thẻ nào đó. Sau đó thực hiện 1 công việc bất kỳ. Thường dùng cho edit hoặc delete 
@@ -322,7 +323,6 @@ class BaseLayoutHelpers extends URLHelpers {
     /**Hàm có tác dụng cuộn chột đến vị trí đã lưu trong  localStorage*/
     restoreScrollPosition() {
         const restorePosition = JSON.parse(sessionStorage.getItem('scrollPosition'));; 
-        console.log(restorePosition, restorePosition.x);
         if (restorePosition !== null) {
             setTimeout(() => {
                 window.scrollTo({
@@ -481,13 +481,12 @@ class LayoutHelpers extends BaseLayoutHelpers {
         }
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
-            new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.eventInitialized );
+            new PaginationHelpers(res, this.renderUI.bind(this), this.pagination, this.eventInitialized );
             this.eventInitialized  = true;  
         }
         this.tbody.innerHTML = html;
-        this.setLabel();
-        this.setTitle();
-        this.restoreScrollPosition();
+        this.setLabelAndTitle();
+        // this.restoreScrollPosition();
     }
 }
 
