@@ -15,7 +15,7 @@ class ModalHelpers extends RequestServerHelpers {
         this.api = api;
         this.modalSelector = modalSelector;
         // lấy ra dữ liệu choices đã được khởi tạo
-        this.dataChoice = this.form.dataChoice;
+        this.dataChoice = this.form?.dataChoice;
         this.priceFormat = [];
         this.dateFormat = [];
         if (this.modalSelector) {
@@ -24,6 +24,7 @@ class ModalHelpers extends RequestServerHelpers {
         }
         this.loading = null;
         this.newModal = null;
+        this.flexForm = true;
     }
 
     /** Khởi tạo modal và xử lý sự kiện mở modal 
@@ -119,7 +120,9 @@ class ModalHelpers extends RequestServerHelpers {
             this.newModal.show();
             // Ẩn form và đóng modal
             this.hideLoading();
-            this.form.form.style.display = "flex";
+            if (this.form.form) {
+                this.form.form.style.display = this.flexForm ? "flex" : "block";
+            }
         } else {
             console.error("Modal instance is not initialized.");
         }
@@ -190,71 +193,98 @@ class ModalHelpers extends RequestServerHelpers {
 
 /**Class có tác dụng thực hiện validate các trường */
 class ValidateHelpers {
-    /**
-   * @param {object} form  nhận vào form cần validate
-   * @param {object} validations  nhận vào các quy tắc cần validate
-   * @param {Boolen} statusFile Trạng thái của form khi phát hiện có trường file mặc định là không có file
-     */
     constructor(form, validations) {
         this.form = form;
         this.validations = validations;
         this.statusFile = true;
     }
 
-    /**
-     * Hàm validateForm form thông thường
-     * @param {Boolean} textSelect nếu là false thì trả về mảng dữ liệu, ngược lại trả về nội dung thẻ select đã được chọn
-     * @returns {Object|Boolean} Trả về object chứa dữ liệu nếu thành công, false nếu có lỗi
-     */
     validateForm(textSelect = false) {
         const dom = this.collectFormElements(textSelect);
         const data = {};
-
-        // Thực hiện validateForm theo bảng thiết kế
         if (!this.runValidation(dom)) return false;
-
-        // Thu thập dữ liệu từ các trường
         for (let key in dom) {
             let item = dom[key];
-            let type = item.getAttribute("type");
-
-            if (type === "file") {
-                // Xử lý input file
-                data[key] = item.files[0];
-            } else if (type === "radio" || type === "checkbox") {
-                // Chỉ lấy giá trị nếu input có checked
-                if (item.checked) {
-                    data[key] = item.value.trim();
+            if (item && typeof item === "object" && !item.tagName) {
+                // Nếu thỏa mãn điều kiện, gán dữ liệu vào mảng data[key]
+                data[key] = [];
+                for (let subKey in item) {
+                    if (item.hasOwnProperty(subKey)) {
+                        let input = item[subKey];
+                        if (input.checked) {
+                            data[key].push(input.value);
+                        }
+                    }
                 }
-            } else if (item.tagName === "SELECT" && item.multiple) {
-                const id = item.getAttribute("id");
-                const choiceSelect = this.form.dataChoice[`#${id}`];
-                const value = choiceSelect.getValue().map(item => item.value);;
-                data[key] = value;
-            }
-            else {
-                // Xử lý các input khác
-                data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
+            } else {
+                let type = item.getAttribute("type");
+    
+                if (type === "file") {
+                    if (item.multiple) {
+                        data[key] = item.files;
+                    } else {
+                        data[key] = item.files[0];
+                    }
+                } else if (type === "radio") {
+                    if (item.checked) {
+                        data[key] = item.value.trim();
+                    }
+                } else if (item.tagName === "SELECT" && item.multiple) {
+                    const id = item.getAttribute("id");
+                    const choiceSelect = this.form.dataChoice[`#${id}`];
+                    const value = choiceSelect.getValue().map(item => item.value);
+                    data[key] = value;
+                } else {
+                    data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
+                }
             }
         }
         return data;
     }
+    
 
-    /**
-     * Hàm validate các hàng trong table
-     * @param {String} tbodySelector selector cho tbody
-     * @returns {Array|Boolean} Trả về mảng dữ liệu các hàng nếu thành công, false nếu có lỗi
-     */
+    collectFormElements(textSelect) {
+        const elements = [...this.form.form.querySelectorAll("select, input, textarea")];
+        const dom = {};
+
+        elements.forEach((item) => {
+            let name = item.getAttribute("name");
+            if (name) {
+                if (item.type === "checkbox") {
+                    // Nếu chưa tồn tại mảng cho checkbox thì khởi tạo
+                    if (!dom[name]) {
+                        dom[name] = {};
+                    }
+                    // Thêm checkbox vào mảng
+                    dom[name][item.value] = item;
+                } else if (item.type === "radio") {
+                    // Chỉ thêm vào dom nếu chưa tồn tại
+                    if (!dom[name]) {
+                        dom[name] = item;
+                    }
+                } else {
+                    dom[name] = item;
+                }
+
+                // Lấy text của select nếu textSelect = true
+                if (textSelect && item.tagName.toLowerCase() === "select") {
+                    dom[`text${name}`] = item.textContent;
+                }
+            }
+        });
+        return dom;
+    }
+
+
     validateRow(tbodySelector) {
         const rows = tbodySelector.querySelectorAll("tr");
         const data = [];
 
         for (let row of rows) {
             const dom = this.collectRowElements(row);
-            // Thực hiện validate cho mỗi hàng
+
             if (!this.runValidation(dom)) return false;
 
-            // Thu thập dữ liệu từ các hàng
             const rowData = {};
             for (let key in dom) {
                 rowData[key] = dom[key].value;
@@ -265,43 +295,10 @@ class ValidateHelpers {
         return data;
     }
 
-    /**
-     * Thu thập các thẻ input, select, textarea trong form
-     * @param {Boolean} textSelect 
-     * @returns {Object} object chứa các thẻ DOM đã thu thập
-     */
-    collectFormElements(textSelect) {
-        const elements = [...this.form.form.querySelectorAll("select, input, textarea")];
-        const dom = {};
-
-        elements.forEach((item) => {
-            let name = item.getAttribute("name");
-            if (name) {
-                let value = item;
-                if (value.type === "radio" || value.type === "checkbox") {
-                    // Chỉ lưu giá trị của radio được chọn
-                    if (value.checked) {
-                        dom[name] = value; // Lưu giá trị của radio được chọn
-                    }
-                } else {
-                    dom[name] = value;
-                    if (textSelect && item.tagName.toLowerCase() === "select") {
-                        dom[`text${name}`] = item.textContent;
-                    }
-                }
-            }
-        });
-        return dom;
-    }
-
-    /**
-     * Thu thập các thẻ input, select, textarea trong một hàng của table
-     * @param {HTMLElement} row đối tượng tr đại diện hàng <tr>
-     * @returns {Object} object chứa các thẻ DOM đã thu thập từ hàng
-     */
     collectRowElements(row) {
         const elements = [...row.querySelectorAll("select, input, textarea")];
-        const rowData = [];
+        const rowData = {};
+
         elements.forEach((item) => {
             let name = item.getAttribute("name");
             if (name) {
@@ -312,35 +309,24 @@ class ValidateHelpers {
         return rowData;
     }
 
-    /**
-     * Chạy quá trình validate theo bảng thiết kế
-     * @param {Object} dom object chứa các phần tử cần validate
-     * @returns {Boolean} Trả về true nếu thành công, false nếu có lỗi
-     */
     runValidation(dom) {
-        for (let { name, defaultName, condition, message } of this.validations) {
+        for (let { name, defaultName, condition, message, whereToReportBugs } of this.validations) {
             if (Array.isArray(name)) {
                 let fieldValues = name.map((item) => dom[item]?.value);
                 if (!this.checkMultipleFields(fieldValues, name, condition, dom, message, defaultName)) return false;
             } else {
                 let field = dom[name];
-
-                if (field && !this.checkSingleField(field, condition, message)) return false;
+                if (field && typeof field === "object" && !field.tagName) {
+                    if (!this.checkMultipleFieldsWithCheckboxAttribute(field, condition, message, whereToReportBugs)) return false;
+                } else {
+                    if (!this.checkSingleField(field, condition, message)) return false;
+                }
             }
         }
         return true;
     }
 
-    /**
-     * Kiểm tra điều kiện với nhiều trường hợp
-     * @param {Array} fieldValues Mảng giá trị các trường
-     * @param {Array} names Mảng tên các trường
-     * @param {Function} condition Hàm điều kiện
-     * @param {Object} dom object chứa các phần tử
-     * @param {String} message Thông báo lỗi
-     * @param {String} defaultName Tên mặc định của trường
-     * @returns {Boolean} Trả về true nếu hợp lệ, false nếu không
-     */
+
     checkMultipleFields(fieldValues, names, condition, dom, message, defaultName) {
         if (fieldValues.every((value) => value !== undefined)) {
             if (!condition(...fieldValues)) {
@@ -358,15 +344,66 @@ class ValidateHelpers {
         return true;
     }
 
-    /**
-     * Kiểm tra điều kiện với một trường duy nhất
-     * @param {HTMLElement} field Trường cần kiểm tra
-     * @param {Function} condition Hàm điều kiện
-     * @param {String} message Thông báo lỗi
-     * @returns {Boolean} Trả về true nếu hợp lệ, false nếu không
+    /**Hàm có tác dụng kiểm tra nhiều đối với thuộc tính checkbox
+     * @param {object} field danh sách dom có cùng tên và thuộc tính checkbox
+     * @param {function} condition hàm thực thi điều kiện
+     * @param {string} whereToReportBugs id hoặc class nơi thông báo lỗi cho toàn bộ thẻ checkbox
      */
+    checkMultipleFieldsWithCheckboxAttribute(field, condition, message, whereToReportBugs) {
+        let isValid = false;
+
+        // Kiểm tra điều kiện của các input
+        for (let key in field) {
+            if (field.hasOwnProperty(key)) {
+                let input = field[key];
+                if (condition(input.value, input)) {
+                    isValid = true;
+                    break; // Dừng vòng lặp nếu thỏa mãn điều kiện
+                }
+            }
+        }
+
+        const reportElement = this.form.form.querySelector(whereToReportBugs);
+
+        if (!isValid) {
+
+            // Thêm thông báo lỗi tổng quát (nếu chỉ định `whereToReportBugs`)
+            if (reportElement) {
+                reportElement.innerHTML = `<div class="show-error text-danger p-2 small">${message}</div>`
+            } else {
+                // Thêm thông báo lỗi và hiệu ứng cho các input không hợp lệ
+                for (let key in field) {
+                    if (field.hasOwnProperty(key)) {
+                        let input = field[key];
+                        changeValidateMessage(input, true, message, ["p-2", "small"]);
+                    }
+                }
+            }
+
+            return false;
+        } else {
+
+            // Xóa lỗi tổng quát (nếu chỉ định `whereToReportBugs`)
+            if (reportElement) {
+                reportElement.innerHTML = ``
+            } else {
+                // Xóa lỗi cho tất cả các input nếu hợp lệ
+                for (let key in field) {
+                    if (field.hasOwnProperty(key)) {
+                        let input = field[key];
+                        changeValidateMessage(input, false, "", []);
+                    }
+                }
+            }
+
+            return true;
+        }
+    }
+
+
     checkSingleField(field, condition, message) {
-        if (!condition(field.value)) {
+        // Trường hợp field là một thẻ HTML
+        if (!condition(field.value, field)) {
             changeValidateMessage(field, true, message, ["p-2", "small"]);
             return false;
         }
@@ -381,7 +418,9 @@ class ValidateHelpers {
         changeValidateMessage(field, false, "", []);
         return true;
     }
+
 }
+
 
 /**Class có tác dụng làm việc với thẻ select */
 class SelectHelpers {
@@ -393,18 +432,14 @@ class SelectHelpers {
         this.customProperties = [];
         // lấy ra dữ liệu choices đã được khởi tạo
         this.dataChoice = this.form.choice.choice;
-
-        this.event = new EventHelpers(this.form.form);
-        this.request = new RequestServerHelpers();
+        this.event = this.form.event;
     }
 
-    // Hàm xử lý chung cho dữ liệu trả về và thiết lập cho Choices
-    processApiData(res, label, labelDefault) {
-
-        let data = formatDataResponse(res);
-        if (data.length == 0) {
-            return [{ value: "Không có dữ liệu", label: labelDefault }];
-        }
+    /**Hàm có tác dụng tạo ra mảng dataChoice từ data
+     * @param {array} data mảng dữ liệu dùng để chuyển sang data choice
+     * @param {string} label là phần ky khi api trả về nhận vào value của thẻ option.
+     */
+    createDataChoice(data, label) {
         return data.map(item => {
             let labelValue = "";
 
@@ -431,6 +466,16 @@ class SelectHelpers {
                 customProperties: customProps,
             };
         });
+    }
+
+    // Hàm xử lý chung cho dữ liệu trả về và thiết lập cho Choices
+    processApiData(res, label, labelDefault) {
+
+        let data = formatDataResponse(res);
+        if (data.length == 0) {
+            return [{ value: "Không có dữ liệu", label: labelDefault }];
+        }
+        return this.createDataChoice(data, label);
     }
 
 
@@ -476,15 +521,15 @@ class SelectHelpers {
         if (!check(choiceSelectReceive, selectReceive, "choice")) return;
 
         this.event.change(selectChange, async (e) => {
-            this.request.params = {};
+            this.form.params = {};
             let value = e.target.value;
             choiceSelectReceive.clearStore();
             choiceSelectReceive._handleLoadingState(true);
             // Gọi getParams ở đây
             let getParam = getParams !== null ? getParams() : {};
-            this.request.params = { [key]: value, ...this.params, ...getParam };
+            this.form.params = { [key]: value, ...this.params, ...getParam };
 
-            let res = await this.request.getData(api);
+            let res = await this.form.getData(api);
             let dataChoice = this.processApiData(res, label, labelDefault);
             dataChoice.unshift({ value: "", label: labelDefault });
 
@@ -524,12 +569,12 @@ class SelectHelpers {
                     const dataCustomProperties = data[item.value];
                     // chỉ cho phép tìm các phần tử ở trong form
                     let dom = this.form.form.querySelector(item.dom);
-                    this.updateDomReceive(dom, dataCustomProperties);
+                    this.form.applyAttributeData(dom, dataCustomProperties);
                 });
             } else if (api) {
-                this.updateDomReceive(domReceive, data[value]);
+                this.form.applyAttributeData(domReceive, data[value]);
             } else {
-                this.updateDomReceive(domReceive, data);
+                this.form.applyAttributeData(domReceive, data);
             }
         };
         // Thêm sự kiện change cho selectChange
@@ -543,11 +588,12 @@ class SelectHelpers {
             if (api) {
                 try {
                     // Gửi yêu cầu GET đến API
-                    const res = await this.request.getData(`${api}?${key}=${e.target.value}`);
+                    const data = await this.form.getData(`${api}?${key}=${e.target.value}`);
                     let dataToDisplay = "Không tìm thấy dữ liệu";
-                    const data = formatDataResponse(res);
-                    if (data.length > 0) {
+                    if (!isReceiveArray) {
                         dataToDisplay = data[value];
+                    } else {
+                        dataToDisplay = data;
                     }
                     updateReceive(dataToDisplay);
                 } catch (error) {
@@ -615,18 +661,6 @@ class SelectHelpers {
         });
     }
 
-
-    // Hàm cập nhật domReceive tùy theo loại thẻ hàm dùng nội bộ
-    updateDomReceive(domReceive, content) {
-        if (domReceive.tagName === "INPUT" || domReceive.tagName === "TEXTAREA") {
-            domReceive.value = "";
-            domReceive.value = checkOutput(content);
-        } else {
-            domReceive.innerHTML = "";
-            domReceive.innerHTML = checkOutput(content);
-        }
-    }
-
     /**Lắng nghe sự kiện tìm thêm dữ liệu
      * @param {string} select ID, Class của thẻ được chọn
      * @param {string} api api nhận lấy ra dữ liệu
@@ -658,7 +692,7 @@ class SelectHelpers {
         // Lắng nghe sự kiện tìm kiếm
         this.event.search(select, async (e) => {
             let query = e.detail.value.trim();
-            this.request.params = {};
+            this.form.params = {};
             clearTimeout(myTimeOut);
             myTimeOut = setTimeout(async () => {
                 choiceSelect.setChoiceByValue("");
@@ -666,8 +700,8 @@ class SelectHelpers {
                 try {
                     // Gọi getParams ở đây
                     let getParam = getParams !== null ? getParams() : {};
-                    this.request.params = { [key]: query, ...getParam, ...params };
-                    let res = await this.request.getData(api);
+                    this.form.params = { [key]: query, ...getParam, ...params };
+                    let res = await this.form.getData(api);
                     let dataChoice = this.processApiData(res, label, "");
                     dataChoice.unshift({ value: "", label: labelDefault });
                     choiceSelect.setChoices(dataChoice, "value", "label", true); // Đổ dữ liệu mới vào select
@@ -700,15 +734,22 @@ class SelectHelpers {
             console.error("Không có đối tượng choices này: " + select);
             return;
         }
-        // alert("hi")
         // choiceSelect._handleLoadingState(true);
-        let res = await this.request.getData(api);
+        let res = await this.form.getData(api);
         let dataChoice = this.processApiData(res, label, labelDefault);
-        // thêm giá trị mặc định
+        this.setDataChoice(choiceSelect, dataChoice, labelDefault);
+        // choiceSelect._handleLoadingState(false);
+    }
+
+    /**Hàm có tác dụng gắn dataChoice cho choice
+     * @param {Object} choice đối tượng choice
+     * @param {Array} dataChoice mảng dữ liệu cần gắn
+     * @param {String} labelDefault giá trị mặc định của thẻ option
+     */
+    setDataChoice(choice, dataChoice, labelDefault) {
         dataChoice.unshift({ value: "", label: labelDefault });
         // trả dữ liệu về thẻ select
-        choiceSelect.setChoices(dataChoice, "value", "label", true);
-        // choiceSelect._handleLoadingState(false);
+        choice.setChoices(dataChoice, "value", "label", true);
     }
 }
 
@@ -718,7 +759,7 @@ class DatePickerHelpers {
         this.form = form;
         this.dataDate = {};
         moment.locale('vi');
-        this.typeFormat = 'D [Tháng] M, YYYY'; // Định dạng ngày
+        this.typeFormat = 'DD/MM/YYYY'; // Định dạng ngày
         this.timeFormat = 'HH:mm:ss';         // Định dạng thời gian
     }
 
@@ -765,6 +806,8 @@ class DatePickerHelpers {
                 singleDatePicker: options.singleDatePicker || false,
                 maxDate: options.maxDate || null,
                 minDate: options.minDate || null,
+                showDropdowns: true,                // Hiển thị dropdown chọn tháng/năm
+                autoApply: false,
                 locale: {
                     format: this.typeFormat,
                     applyLabel: "Áp dụng",
@@ -983,9 +1026,9 @@ class BaseFormHelpers extends RequestServerHelpers {
         // mặc định khởi tạo date picker
         this.datePicker.initialize();
 
+        this.event = new EventHelpers(this.form);
         this.select = new SelectHelpers(this);
 
-        this.event = new EventHelpers(this.form);
         this.validate = new ValidateHelpers(this, validations);
         this.modal = new ModalHelpers(this, modalSelector, this.api);
         this.reset = new ResetHelpers(this);
@@ -1041,8 +1084,8 @@ class BaseFormHelpers extends RequestServerHelpers {
      */
     applyAttributeData(dom, value) {
         // Kiểm tra loại của input
-
         let name = dom.name;
+
         if (dom.type === "radio" || dom.type === "checkbox") {
             if (String(dom.value) === String(value)) {
                 dom.checked = true; // Đánh dấu input
@@ -1053,26 +1096,35 @@ class BaseFormHelpers extends RequestServerHelpers {
             let id = dom.getAttribute("id");
             let choiceInstance = this.dataChoice[`#${id}`];
             if (choiceInstance) {
-                choiceInstance.setChoiceByValue(String(value));
-                if (dom.multiple && value.length > 0) {
+                if (value && dom.multiple && Array.isArray(value) && value.length > 0) {
                     value.forEach(item => {
                         choiceInstance.setChoiceByValue(String(item));
-                    })
+                    });
+                } else {
+                    choiceInstance.setChoiceByValue(String(value));
                 }
             } else {
                 console.error(`Không tìm thấy id này #${id} ở trong form.`);
             }
         } else {
-            // Xử lý các loại input khác
-            if (this.priceFormat.includes(name)) {
-                dom.value = numberFormatHelpers(value);
-            } else if (this.dateFormat.includes(name)) {
-                dom.value = dateTimeFormat(value);
-            } else {
-                dom.value = value;
+            if (value) {
+                // Xử lý các loại input khác
+                if (this.priceFormat.includes(name)) {
+                    dom.value = numberFormatHelpers(value);
+                } else if (this.dateFormat.includes(name)) {
+                    dom.value = dateTimeFormat(value);
+                } else {
+                    // Kiểm tra loại thẻ
+                    if (dom.tagName === "INPUT" || dom.tagName === "TEXTAREA") {
+                        dom.value = value; // Nếu là thẻ input hoặc textarea
+                    } else {
+                        dom.innerHTML = value; // Nếu là các thẻ khác (ví dụ: div, span)
+                    }
+                }
             }
         }
     }
+
 
     /**
      * @param {boolean} [statusTable=false] Trạng thái khi format dữ liệu cho table form. Mặc định là không
@@ -1082,10 +1134,10 @@ class BaseFormHelpers extends RequestServerHelpers {
     formatData(data, statusTable = false) {
         if (!statusTable) {
             this.formatFields(data, this.priceFormat, removeCommasHelpers);
-            // this.formatFields(data, this.dateFormat, convertDateFormatHelpers);
+            this.formatFields(data, this.dateFormat, convertDateFormatHelpers);
         } else {
             this.formatFieldsTable(data, this.priceFormat, removeCommasHelpers);
-            // this.formatFieldsTable(data, this.dateFormat, convertDateFormatHelpers);
+            this.formatFieldsTable(data, this.dateFormat, convertDateFormatHelpers);
         }
         return data;
     }
@@ -1170,6 +1222,7 @@ class BaseFormHelpers extends RequestServerHelpers {
     * Hiển thị lỗi cho các trường trong form
     */
     showErrorResponse(errors) {
+
         // Thực hiện xóa toàn bộ lỗi trước khi gắn lại lỗi mới
         removeAllValidationClasses(this.form);
         for (let name in errors) {
@@ -1194,12 +1247,17 @@ class BaseFormHelpers extends RequestServerHelpers {
         // Duyệt qua các thuộc tính của data và thêm vào FormData
         for (let key in data) {
             if (data.hasOwnProperty(key)) {
-                formData.append(key, data[key]);
+                if (data[key] instanceof FileList) {
+                    for (let i = 0; i < data[key].length; i++) {
+                        formData.append(key, data[key][i]);
+                    }
+                } else {
+                    formData.append(key, data[key]);
+                }
             }
         }
         return formData;
     }
-
     /**Hàn có tác dụng gửi dữ liệu dựa trên method yêu cầu
      * @param {array} data nhận vào 1 mảng chứa các object dữ l
      * @param {string} method nhận vào method cần gửi
@@ -1211,7 +1269,7 @@ class BaseFormHelpers extends RequestServerHelpers {
                 response = await this.postData(data, debug);
                 break;
             case "put":
-                response = await this.putData(data, debug);
+                response = await this.putData(data, debug, this.api);
                 break;
             default:
                 console.error("method không được hỗ trợ vui lòng chọn method khác: " + method);
@@ -1387,7 +1445,6 @@ class FormTableHelpers extends BaseFormHelpers {
 
     // Thực hiện xóa dữ liệu trong bảng và trong mảng dataTotal
     deleteDataFromTable(id) {
-        console.log(this.dataTotal);
         this.dataTotal = this.dataTotal.filter(item => item.id !== id);
         const row = this.domTbody.querySelector(`tr[id="${id}"]`);
         if (row) {
