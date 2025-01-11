@@ -8,6 +8,7 @@ class ModalHelpers extends RequestServerHelpers {
      * @param {Object} form đã được khởi tạo bằng class FormHelpers
      * @param {string} modalSelector nhận vào 1 id, class modal
      * @param {string} api được sử dụng khi khởi tạo modal edit
+     * @param {boolean = true} closeModalReset sử dụng để xác định xem khi đóng modal có reset hay không. true = reset, false = not reset
      */
     constructor(form, modalSelector, api = "") {
         super("");
@@ -25,6 +26,7 @@ class ModalHelpers extends RequestServerHelpers {
         this.loading = null;
         this.newModal = null;
         this.flexForm = true;
+        this.closeModalReset = true;
     }
 
     /** Khởi tạo modal và xử lý sự kiện mở modal 
@@ -102,8 +104,9 @@ class ModalHelpers extends RequestServerHelpers {
             await this.form.setFormData(response); // Đổ dữ liệu vào form
             this.hideLoading();
 
-            // Khởi tạo sự kiện đóng modal
+            // Khởi tạo sự kiện reset form sau khi đóng modal
             this.resetModal();
+            return response;
         } catch (error) {
             console.error("Có lỗi xảy ra:", error);
         }
@@ -123,8 +126,6 @@ class ModalHelpers extends RequestServerHelpers {
             if (this.form.form) {
                 this.form.form.style.display = this.flexForm ? "flex" : "block";
             }
-        } else {
-            console.error("Modal instance is not initialized.");
         }
     }
 
@@ -132,8 +133,6 @@ class ModalHelpers extends RequestServerHelpers {
     hideModal() {
         if (this.newModal) {
             this.newModal.hide();
-        } else {
-            console.error("Modal instance is not initialized.");
         }
         this.resetForm();
     }
@@ -184,7 +183,7 @@ class ModalHelpers extends RequestServerHelpers {
 
     /** Reset form và các phần tử modal */
     resetForm() {
-        if (this.form) {
+        if (this.form && this.closeModalReset) {
             this.form.reset.resetForm();
         }
         if (this.loading) this.loading.style.display = "none";
@@ -218,16 +217,12 @@ class ValidateHelpers {
                 }
             } else {
                 let type = item.getAttribute("type");
-    
+
                 if (type === "file") {
                     if (item.multiple) {
                         data[key] = item.files;
                     } else {
                         data[key] = item.files[0];
-                    }
-                } else if (type === "radio") {
-                    if (item.checked) {
-                        data[key] = item.value.trim();
                     }
                 } else if (item.tagName === "SELECT" && item.multiple) {
                     const id = item.getAttribute("id");
@@ -241,7 +236,7 @@ class ValidateHelpers {
         }
         return data;
     }
-    
+
 
     collectFormElements(textSelect) {
         const elements = [...this.form.form.querySelectorAll("select, input, textarea")];
@@ -250,18 +245,13 @@ class ValidateHelpers {
         elements.forEach((item) => {
             let name = item.getAttribute("name");
             if (name) {
-                if (item.type === "checkbox") {
+                if (item.type === "checkbox" || item.type === "radio") {
                     // Nếu chưa tồn tại mảng cho checkbox thì khởi tạo
                     if (!dom[name]) {
                         dom[name] = {};
                     }
                     // Thêm checkbox vào mảng
                     dom[name][item.value] = item;
-                } else if (item.type === "radio") {
-                    // Chỉ thêm vào dom nếu chưa tồn tại
-                    if (!dom[name]) {
-                        dom[name] = item;
-                    }
                 } else {
                     dom[name] = item;
                 }
@@ -603,7 +593,8 @@ class SelectHelpers {
                 const dataCustomProperties = selectedChoice.customProperties;
                 updateReceive(dataCustomProperties);
             } else {
-                updateReceive(e.target.value);
+                const selectedOption = e.target.options[e.target.selectedIndex];
+                updateReceive(selectedOption.text);
             }
         })
     }
@@ -882,6 +873,7 @@ class DatePickerHelpers {
         this.initDatePicker('input.start-date-picker-default-this-month', moment().startOf('month'));
         this.initDatePicker('input.start-date-picker', moment());
         this.initDatePicker('input.start-date-picker-single', moment(), { singleDatePicker: true });
+        this.initDatePicker('input.start-date-picker-single-max-today', moment(), { singleDatePicker: true, maxDate: moment() });
         this.initDatePicker('input.start-date-picker-max-today', moment().subtract(7, 'days'), { maxDate: moment() });
         this.initDatePicker('input.start-date-picker-min-today', moment(), { minDate: moment() });
         this.initTimePicker('input.time-picker'); // Khởi tạo timepicker
@@ -1083,48 +1075,47 @@ class BaseFormHelpers extends RequestServerHelpers {
      * @param {*} value Dữ liệu được sét vào thẻ
      */
     applyAttributeData(dom, value) {
-        // Kiểm tra loại của input
-        let name = dom.name;
+        // Lấy tên và loại của input
+        const name = dom.name;
+        const domType = dom.type;
+        const isInputOrTextarea = dom.tagName === "INPUT" || dom.tagName === "TEXTAREA";
 
-        if (dom.type === "radio" || dom.type === "checkbox") {
-            if (String(dom.value) === String(value)) {
-                dom.checked = true; // Đánh dấu input
-            } else {
-                dom.checked = false; // Bỏ đánh dấu nếu không khớp
-            }
-        } else if (dom.hasAttribute("data-choice")) {
-            let id = dom.getAttribute("id");
-            let choiceInstance = this.dataChoice[`#${id}`];
-            if (choiceInstance) {
-                if (value && dom.multiple && Array.isArray(value) && value.length > 0) {
-                    value.forEach(item => {
-                        choiceInstance.setChoiceByValue(String(item));
-                    });
-                } else {
-                    choiceInstance.setChoiceByValue(String(value));
-                }
-            } else {
+        // Xử lý radio và checkbox
+        if (["radio", "checkbox"].includes(domType)) {
+            const values = Array.isArray(value) ? value.map(String) : [String(value)];
+            dom.checked = values.includes(String(dom.value));
+        }
+
+        // Xử lý Choices.js
+        else if (dom.hasAttribute("data-choice")) {
+            const id = dom.getAttribute("id");
+            const choiceInstance = this.dataChoice[`#${id}`];
+            if (!choiceInstance) {
                 console.error(`Không tìm thấy id này #${id} ở trong form.`);
+                return;
             }
-        } else {
+            if (dom.multiple && Array.isArray(value)) {
+                value.forEach(item => choiceInstance.setChoiceByValue(String(item)));
+            } else {
+                choiceInstance.setChoiceByValue(String(value));
+            }
+        }
+
+        // Xử lý các loại input khác
+        else{
             if (value) {
-                // Xử lý các loại input khác
                 if (this.priceFormat.includes(name)) {
                     dom.value = numberFormatHelpers(value);
                 } else if (this.dateFormat.includes(name)) {
                     dom.value = dateTimeFormat(value);
+                } else if (isInputOrTextarea) {
+                    dom.value = value;
                 } else {
-                    // Kiểm tra loại thẻ
-                    if (dom.tagName === "INPUT" || dom.tagName === "TEXTAREA") {
-                        dom.value = value; // Nếu là thẻ input hoặc textarea
-                    } else {
-                        dom.innerHTML = value; // Nếu là các thẻ khác (ví dụ: div, span)
-                    }
+                    dom.innerHTML = value;
                 }
             }
         }
     }
-
 
     /**
      * @param {boolean} [statusTable=false] Trạng thái khi format dữ liệu cho table form. Mặc định là không
@@ -1249,7 +1240,7 @@ class BaseFormHelpers extends RequestServerHelpers {
             if (data.hasOwnProperty(key)) {
                 if (data[key] instanceof FileList) {
                     for (let i = 0; i < data[key].length; i++) {
-                        formData.append(key, data[key][i]);
+                        formData.append(`${key}[]`, data[key][i]);
                     }
                 } else {
                     formData.append(key, data[key]);

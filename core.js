@@ -302,11 +302,13 @@ class ConfirmHelpers {
     btnBg: "red",
     title: "Xóa",
     success: async () => { },
+    cancel: async () => { },
   };
 
   constructor() {
     this.modal = document.getElementById("modalConfirmDelete");
     this.btnConfirm = this.modal.querySelector(".btn-confirm");
+    this.btnCancel = this.modal.querySelector(".btn-cancel");
     this.modalBT = new bootstrap.Modal(this.modal, { keyboard: false });
     this.element = this.modal.querySelector(".confirm-message");
 
@@ -314,6 +316,13 @@ class ConfirmHelpers {
       this.originalText = this.btnConfirm.textContent;
       this.loading(true);
       this.config.success(e);
+    });
+
+    this.btnCancel.addEventListener("click", async (e) => {
+      if(this.config.cancel){
+        this.config.cancel(e);
+      }
+      this.modalBT.hide();
     });
   }
 
@@ -333,14 +342,13 @@ class ConfirmHelpers {
   // Thực hiện hiển thị confirm
   show() {
     this.btnConfirm.style.backgroundColor = this.config.btnBg;
-    this.element.textContent = this.config.text;
-    this.btnConfirm.textContent = this.config.btnText;
+    this.element.innerHTML = this.config.text;
+    this.btnConfirm.innerHTML = this.config.btnText;
     this.btnConfirm.setAttribute("title", this.config.title);
 
     this.modalBT.show();
   }
 }
-
 // Class thao tác với việc xử lý file
 class FileHelpers {
 

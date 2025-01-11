@@ -24,8 +24,22 @@ function formatApiUrl(api, params) {
 * @param {string} dateString chuỗi thời gian theo dạng d-m-Y
 */
 function convertDateFormatHelpers(dateString) {
-  const [day, month, year] = dateString.split("-");
-  return `${year}-${month}-${day}`;
+  
+  // Kiểm tra nếu chuỗi có chứa dấu " - " (ngày bắt đầu và kết thúc)
+  if (dateString.includes(" - ")) {
+      // Tách chuỗi thành 2 ngày
+      const [startDate, endDate] = dateString.split(" - ");
+      return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+  } else {
+      // Nếu chỉ có 1 ngày
+      return formatDate(dateString);
+  }
+}
+
+// Hàm phụ giúp chuyển đổi ngày về dạng YY-mm-dd
+function formatDate(dateString) {
+  const [day, month, year] = dateString.split("/");
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
 }
 /**format API. Hàm có tác dụng format lại API khi truyền quá nhiều param
 * @param {string} -Nhận vào 1 chuỗi API

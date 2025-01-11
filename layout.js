@@ -302,12 +302,16 @@ class BaseLayoutHelpers extends URLHelpers {
     })
     */
     handleEventClick(className, callback) {
-        this.tbody.addEventListener("click", function (e) {
+        this.tbody.addEventListener("click", async function (e) {
             // Kiểm tra xem phần tử được click hoặc thẻ cha của nó có chứa class không
             const targetElement = e.target.closest(`.${className}`);
             if (targetElement) {
+                const btnClick = e.target;
+                const originalText = btnClick.innerHTML;
+                btnLoading(btnClick, true);
                 let id = targetElement.id;
-                callback(id, e);
+                await callback(id, e);
+                btnLoading(btnClick, false, originalText);
             }
         });
     }
