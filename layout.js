@@ -344,10 +344,10 @@ class LayoutHelpers extends BaseLayoutHelpers {
     /**
        * @constructor 
        * @param {string, Array} api thực hiện gọi api, Nếu bạn có nhiều api thì hãy truyền dạng mảng. Dữ liệu sau khi trả về sẽ được gom lại thành 1 mảng chứa các object bên trong. Đối với api đầu tiên sẽ là api chính tức là: phân trang, lọc sẽ chỉ hoạt động ở api đầu tiên
-       * @param {HTMLFormElement} form nơi đổ ra dữ liệu cần hiển thị
        * @param {Callback} template là một callback trả về html dựa theo mảng data truyền vào
-       * @param {number} colspan số cột cần gộp nếu có lỗi
        * @param {boolean, Array} total phân biệt có hiển thị tính tổng số lượng hay không
+       * @param {HTMLFormElement} form nơi đổ ra dữ liệu cần hiển thị
+       * @param {number} colspan số cột cần gộp nếu có lỗi
        * [
        *  {dom: id thẻ nhận dữ liệu, key: key khi trả về từ api, subContent: Nội dung phụ đằng sau, format: "date" or "number"}
        * ]

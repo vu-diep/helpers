@@ -24,15 +24,15 @@ function formatApiUrl(api, params) {
 * @param {string} dateString chuỗi thời gian theo dạng d-m-Y
 */
 function convertDateFormatHelpers(dateString) {
-  
+
   // Kiểm tra nếu chuỗi có chứa dấu " - " (ngày bắt đầu và kết thúc)
   if (dateString.includes(" - ")) {
-      // Tách chuỗi thành 2 ngày
-      const [startDate, endDate] = dateString.split(" - ");
-      return `${formatDate(startDate)} - ${formatDate(endDate)}`;
+    // Tách chuỗi thành 2 ngày
+    const [startDate, endDate] = dateString.split(" - ");
+    return `${formatDate(startDate)} - ${formatDate(endDate)}`;
   } else {
-      // Nếu chỉ có 1 ngày
-      return formatDate(dateString);
+    // Nếu chỉ có 1 ngày
+    return formatDate(dateString);
   }
 }
 
@@ -75,7 +75,7 @@ function formatAPI(api) {
 
 /**Hàm có tác dụng format data khi gọi response trả về. */
 function formatDataResponse(res) {
-  if(res.totalPages){
+  if (res.totalPages) {
     return res.data;
   }
   return res.data?.data?.length > 0 ? res.data.data : res.data;
@@ -131,7 +131,108 @@ function numberFormatHelpers(numberString, max = 0, groupSeparator = ",", decima
   return customFormattedNumber;
 }
 
+const dateTimeFormatHelpers = (date, format = "d-m-Y") => {
+  let currentDate;
+  if (date == "0000-00-00 00:00:00" || date == "0000-00-00" || date == "") {
+    return "";
+  }
+  if (typeof date === "string" || typeof date === "number") {
+    currentDate = new Date(date);
+  } else {
+    return "";
+  }
+
+  let seconds = currentDate.getSeconds().toString().padStart(2, "0"); // Add leading zero if needed
+  let minutes = currentDate.getMinutes().toString().padStart(2, "0"); // Add leading zero if needed
+  let hours = currentDate.getHours().toString().padStart(2, "0"); // Add leading zero if needed
+  let day = currentDate.getDate().toString().padStart(2, "0"); // Add leading zero if needed
+  let month = (currentDate.getMonth() + 1).toString().padStart(2, "0"); // Month is zero-based
+  let year = currentDate.getFullYear();
+  let result = format.replace("i", minutes);
+  result = result.replace("s", seconds);
+  result = result.replace("H", hours);
+  result = result.replace("d", day);
+  result = result.replace("m", month);
+  result = result.replace("Y", year);
+  return result;
+};
+
 // Hàm kiểm tra xem một object có rỗng hay không
 const isEmptyObject = (obj) => Object.keys(obj).length === 0;
 
-export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers, isEmptyObject };
+/**
+ * Hàm có tác dụng kiểm tra xem dom truyền vào có phải html hay không. Nếu không trả về document, có thì trả về dom
+ */
+function checkDom(dom) {
+  // Kiểm tra xem dom có phải là một phần tử html hợp lệ không, nếu không mặc định là document
+  return (dom instanceof HTMLElement || dom instanceof Document) ? dom : document;
+}
+
+/**
+ * hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
+ * @param {dom} dom Thẻ cần sét dữ liệu
+ * @param {*} value Dữ liệu được sét vào thẻ
+ */
+function applyAttributeData(dom, value, dataChoice, priceFormat, dateFormat) {
+  // Lấy tên và loại của input
+  const name = dom.name;
+  const domType = dom.type;
+  const isInputOrTextarea = dom.tagName === "INPUT" || dom.tagName === "TEXTAREA";
+
+  // Xử lý radio và checkbox
+  if (["radio", "checkbox"].includes(domType)) {
+    const values = Array.isArray(value) ? value.map(String) : [String(value)];
+    dom.checked = values.includes(String(dom.value));
+  }
+
+  // Xử lý Choices.js
+  else if (dom.hasAttribute("data-choice")) {
+    const id = dom.getAttribute("id");
+    const choiceInstance = dataChoice[`#${id}`];
+    if (!choiceInstance) {
+      console.error(`Không tìm thấy id này #${id} ở trong form.`);
+      return;
+    }
+    if (dom.multiple && Array.isArray(value)) {
+      value.forEach(item => choiceInstance.setChoiceByValue(String(item)));
+    } else {
+      choiceInstance.setChoiceByValue(String(value));
+    }
+  }
+
+  // Xử lý các loại input khác
+  else {
+    if (value) {
+      if (priceFormat.includes(name)) {
+        dom.value = numberFormatHelpers(value);
+      } else if (dateFormat.includes(name)) {
+        dom.value = dateTimeFormatHelpers(value);
+      } else if (isInputOrTextarea) {
+        dom.value = value;
+      } else {
+        dom.innerHTML = value;
+      }
+    }
+  }
+}
+
+/**
+ * hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
+ * @param {object} data Dữ liệu cần sét
+ * @param {dom} form HTML element của tử trong form
+ */
+function setFormData(data, form, dataChoice, priceFormat, dateFormat) {
+  // Lấy tất cả các phần tử trong form
+  const elements = form.elements;
+
+  for (let dom of elements) {
+    let name = dom.getAttribute("name");
+    // tìm kiếm và lấy dữ liệu của data dựa vào name thẻ
+    if (name && data.hasOwnProperty(name)) {
+      let value = data[name];
+      applyAttributeData(dom, value, dataChoice, priceFormat, dateFormat)
+    }
+  }
+}
+
+export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers, isEmptyObject, checkDom, applyAttributeData, setFormData };

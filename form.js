@@ -1,6 +1,6 @@
 import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core.js";
-import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers } from "./coreFunctions.js";
-import { removeCommasHelpers, checkOutput } from "./common.js";
+import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers, checkDom, applyAttributeData, setFormData } from "./coreFunctions.js";
+import { removeCommasHelpers } from "./common.js";
 
 /**Class làm việc với modal */
 class ModalHelpers extends RequestServerHelpers {
@@ -10,15 +10,16 @@ class ModalHelpers extends RequestServerHelpers {
      * @param {string} api được sử dụng khi khởi tạo modal edit
      * @param {boolean = true} closeModalReset sử dụng để xác định xem khi đóng modal có reset hay không. true = reset, false = not reset
      */
-    constructor(form, modalSelector, api = "") {
+    constructor(modalSelector, scope, dataChoice, reset, api = "", priceFormat = [], dateFormat = []) {
         super("");
-        this.form = form;
+        this.scope = checkDom(scope);
         this.api = api;
+        this.reset = reset;
         this.modalSelector = modalSelector;
         // lấy ra dữ liệu choices đã được khởi tạo
-        this.dataChoice = this.form?.dataChoice;
-        this.priceFormat = [];
-        this.dateFormat = [];
+        this.dataChoice = dataChoice;
+        this.priceFormat = priceFormat;
+        this.dateFormat = dateFormat;
         if (this.modalSelector) {
             this.modal = document.querySelector(this.modalSelector);
             if (!check(this.modal, this.modalSelector)) return;
@@ -58,9 +59,6 @@ class ModalHelpers extends RequestServerHelpers {
                 });
                 isModalInitialized = true; // Đánh dấu modal đã được khởi tạo
             }
-
-            // Khởi tạo sự kiện đóng modal
-            this.resetModal();
         };
 
         // Nếu có bntStartModal, gắn sự kiện click vào phần tử đó để mở modal
@@ -101,11 +99,8 @@ class ModalHelpers extends RequestServerHelpers {
             this.params = params;
             const formatAPI = this.api + "/" + id;
             const response = await this.showModalWithData(formatAPI);
-            await this.form.setFormData(response); // Đổ dữ liệu vào form
+            await setFormData(response, this.scope, this.dataChoice, this.priceFormat, this.dateFormat); // Đổ dữ liệu vào form
             this.hideLoading();
-
-            // Khởi tạo sự kiện reset form sau khi đóng modal
-            this.resetModal();
             return response;
         } catch (error) {
             console.error("Có lỗi xảy ra:", error);
@@ -123,8 +118,8 @@ class ModalHelpers extends RequestServerHelpers {
             this.newModal.show();
             // Ẩn form và đóng modal
             this.hideLoading();
-            if (this.form.form) {
-                this.form.form.style.display = this.flexForm ? "flex" : "block";
+            if (this.scope) {
+                this.scope.style.display = this.flexForm ? "flex" : "block";
             }
         }
     }
@@ -134,7 +129,6 @@ class ModalHelpers extends RequestServerHelpers {
         if (this.newModal) {
             this.newModal.hide();
         }
-        this.resetForm();
     }
 
     /** Thiết lập loading */
@@ -162,31 +156,14 @@ class ModalHelpers extends RequestServerHelpers {
     /** Đổ dữ liệu mặc định vào form */
     async fillFormWithDefaults(dataDefault) {
         dataDefault.forEach(async (item) => {
-            const element = this.form.form.querySelector(item.dom);
+            const element = this.scope.querySelector(item.dom);
             if (element) {
                 let value = typeof item.value === "function" ? await item.value() : item.value;
-                this.form.applyAttributeData(element, value)
+                applyAttributeData(element, value, this.dataChoice, this.priceFormat, this.dateFormat)
             } else {
                 console.error("Không có phần tử này: " + item.dom + " trong DOM");
             }
         });
-    }
-
-    /** Reset modal khi đóng */
-    resetModal() {
-        if (this.modal) {
-            this.modal.addEventListener("hidden.bs.modal", () => {
-                this.resetForm();
-            });
-        }
-    }
-
-    /** Reset form và các phần tử modal */
-    resetForm() {
-        if (this.form && this.closeModalReset) {
-            this.form.reset.resetForm();
-        }
-        if (this.loading) this.loading.style.display = "none";
     }
 }
 
@@ -411,18 +388,22 @@ class ValidateHelpers {
 
 }
 
+/**Class có tác dụng làm việc với thẻ select 
+ * @param {Object} dataChoice Object chứa các đối tượng choice đã được khởi tạo từ class choice
+ * @param {Object} event Đối tượng được khởi tạo từ class event
+ * @param {dom} scope phạm vi có thể truy cập được của thẻ select. Nếu không truyền thì phạm vi là document
+*/
+class SelectHelpers extends RequestServerHelpers {
 
-/**Class có tác dụng làm việc với thẻ select */
-class SelectHelpers {
-
-    constructor(form) {
-        this.form = form;
+    constructor(dataChoice, event, scope) {
+        super("");
+        this.scope = checkDom(scope);
         this.params = {};
         this.value = "id";
         this.customProperties = [];
         // lấy ra dữ liệu choices đã được khởi tạo
-        this.dataChoice = this.form.choice.choice;
-        this.event = this.form.event;
+        this.dataChoice = dataChoice;
+        this.event = event;
     }
 
     /**Hàm có tác dụng tạo ra mảng dataChoice từ data
@@ -511,15 +492,15 @@ class SelectHelpers {
         if (!check(choiceSelectReceive, selectReceive, "choice")) return;
 
         this.event.change(selectChange, async (e) => {
-            this.form.params = {};
+            this.params = {};
             let value = e.target.value;
             choiceSelectReceive.clearStore();
             choiceSelectReceive._handleLoadingState(true);
             // Gọi getParams ở đây
             let getParam = getParams !== null ? getParams() : {};
-            this.form.params = { [key]: value, ...this.params, ...getParam };
+            this.params = { [key]: value, ...this.params, ...getParam };
 
-            let res = await this.form.getData(api);
+            let res = await this.getData(api);
             let dataChoice = this.processApiData(res, label, labelDefault);
             dataChoice.unshift({ value: "", label: labelDefault });
 
@@ -542,11 +523,11 @@ class SelectHelpers {
     eventListenerChangeForData(selectChange, receive, value, api = "", key = "") {
 
         // Lấy phần tử DOM cho selectChange
-        const domSelectChange = this.form.form.querySelector(selectChange);
+        const domSelectChange = this.scope.querySelector(selectChange);
         if (!check(domSelectChange, selectChange)) return;
         // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
         const isReceiveArray = Array.isArray(receive);
-        const domReceive = isReceiveArray ? null : this.form.form.querySelector(receive);
+        const domReceive = isReceiveArray ? null : this.scope.querySelector(receive);
         if (!isReceiveArray && !domReceive) {
             console.error("Không tìm thấy id hoặc class này: " + receive);
             return;
@@ -558,13 +539,13 @@ class SelectHelpers {
                 receive.forEach((item) => {
                     const dataCustomProperties = data[item.value];
                     // chỉ cho phép tìm các phần tử ở trong form
-                    let dom = this.form.form.querySelector(item.dom);
-                    this.form.applyAttributeData(dom, dataCustomProperties);
+                    let dom = this.scope.querySelector(item.dom);
+                    applyAttributeData(dom, dataCustomProperties, this.dataChoice);
                 });
             } else if (api) {
-                this.form.applyAttributeData(domReceive, data[value]);
+                applyAttributeData(domReceive, data[value], this.dataChoice);
             } else {
-                this.form.applyAttributeData(domReceive, data);
+                applyAttributeData(domReceive, data, this.dataChoice);
             }
         };
         // Thêm sự kiện change cho selectChange
@@ -578,7 +559,7 @@ class SelectHelpers {
             if (api) {
                 try {
                     // Gửi yêu cầu GET đến API
-                    const data = await this.form.getData(`${api}?${key}=${e.target.value}`);
+                    const data = await this.getData(`${api}?${key}=${e.target.value}`);
                     let dataToDisplay = "Không tìm thấy dữ liệu";
                     if (!isReceiveArray) {
                         dataToDisplay = data[value];
@@ -609,7 +590,7 @@ class SelectHelpers {
         // Kiểm tra xem receive là mảng hay chuỗi và thiết lập domReceive
         const isReceiveArray = Array.isArray(receive);
 
-        const domReceive = isReceiveArray ? null : this.form.form.querySelector(`[name="${receive}"]`);
+        const domReceive = isReceiveArray ? null : this.scope.querySelector(`[name="${receive}"]`);
 
         if (!isReceiveArray && !domReceive) {
             console.error("Không tìm thấy id hoặc class này: " + receive);
@@ -621,7 +602,7 @@ class SelectHelpers {
             if (isReceiveArray) {
                 receive.forEach((item) => {
                     // Chỉ cho phép tìm các phần tử ở trong form
-                    let dom = this.form.form.querySelector(`[name="${item}"]`);
+                    let dom = this.scope.querySelector(`[name="${item}"]`);
                     if (!dom) return; // Nếu không tìm thấy phần tử, bỏ qua
                     if (dom.getAttribute("data-choice")) {
                         let id = dom.getAttribute("id");
@@ -683,7 +664,7 @@ class SelectHelpers {
         // Lắng nghe sự kiện tìm kiếm
         this.event.search(select, async (e) => {
             let query = e.detail.value.trim();
-            this.form.params = {};
+            this.params = {};
             clearTimeout(myTimeOut);
             myTimeOut = setTimeout(async () => {
                 choiceSelect.setChoiceByValue("");
@@ -691,8 +672,8 @@ class SelectHelpers {
                 try {
                     // Gọi getParams ở đây
                     let getParam = getParams !== null ? getParams() : {};
-                    this.form.params = { [key]: query, ...getParam, ...params };
-                    let res = await this.form.getData(api);
+                    this.params = { [key]: query, ...getParam, ...params };
+                    let res = await this.getData(api);
                     let dataChoice = this.processApiData(res, label, "");
                     dataChoice.unshift({ value: "", label: labelDefault });
                     choiceSelect.setChoices(dataChoice, "value", "label", true); // Đổ dữ liệu mới vào select
@@ -726,7 +707,7 @@ class SelectHelpers {
             return;
         }
         // choiceSelect._handleLoadingState(true);
-        let res = await this.form.getData(api);
+        let res = await this.getData(api);
         let dataChoice = this.processApiData(res, label, labelDefault);
         this.setDataChoice(choiceSelect, dataChoice, labelDefault);
         // choiceSelect._handleLoadingState(false);
@@ -744,10 +725,12 @@ class SelectHelpers {
     }
 }
 
-/**Class có tác dụng khởi tạo daterangepicker */
+/**Class có tác dụng khởi tạo daterangepicker 
+ * @param {dom} scope phạm vi có thể truy cập được của thẻ select. Nếu không truyền thì phạm vi là document
+*/
 class DatePickerHelpers {
-    constructor(form) {
-        this.form = form;
+    constructor(scope) {
+        this.scope = checkDom(scope);
         this.dataDate = {};
         moment.locale('vi');
         this.typeFormat = 'DD/MM/YYYY'; // Định dạng ngày
@@ -789,7 +772,7 @@ class DatePickerHelpers {
 
     // Hàm khởi tạo daterangepicker
     initDatePicker(selector, start, options = {}) {
-        $(this.form).find(selector).each((index, input) => {
+        $(this.scope).find(selector).each((index, input) => {
             const $input = $(input);
             $input.attr('autocomplete', 'off');
             $input.daterangepicker({
@@ -829,7 +812,7 @@ class DatePickerHelpers {
 
     // Hàm khởi tạo timepicker
     initTimePicker(selector) {
-        $(this.form).find(selector).each((index, input) => {
+        $(this.scope).find(selector).each((index, input) => {
             const $input = $(input);
             $input.attr('autocomplete', 'off');
 
@@ -881,11 +864,11 @@ class DatePickerHelpers {
 }
 
 /**class có tác dụng khởi tạo choice và thực hiện việc lưu trữ cac giá trị choice dã được khởi tạo 
-  * @param {string} form Nhận vào 1 form đã được khởi tạo
+  * @param {string} scope Nhận vào 1 dom đã được khởi tạo làm phạm vi
 */
 class ChoiceHelpers {
-    constructor(form) {
-        this.form = form;
+    constructor(scope) {
+        this.scope = checkDom(scope);
         // lưu trữ khi khởi tạo choice
         this.choice = {};
     }
@@ -894,8 +877,8 @@ class ChoiceHelpers {
    * @param {string} choiceArray là mộ mảng chứa id của 1 thẻ
    */
     startChoice() {
-        // Lấy tất cả các thẻ <select> bên trong form
-        const selectElements = this.form.querySelectorAll("select");
+        // Lấy tất cả các thẻ <select> bên trong scope
+        const selectElements = this.scope.querySelectorAll("select");
         // Kiểm tra xem choiceArray có phải là một mảng và không rỗng
         const selectElementsLength = selectElements.length;
         if (selectElementsLength > 0) {
@@ -919,16 +902,14 @@ class ChoiceHelpers {
   * @param {string} form Nhận vào 1 form đã được khởi tạo
 */
 class ResetHelpers {
-    constructor(form) {
-        this.form = form;
-        // lưu trữ khi khởi tạo choice
-        // lấy ra dữ liệu choices đã được khởi tạo
-        this.dataChoice = this.form.choice.choice;
-        this.datePicker = this.form.datePicker;
+    constructor(scope, dataChoice, datePicker) {
+        this.scope = checkDom(scope);
+        this.dataChoice = dataChoice;
+        this.datePicker = datePicker;
         this.notRest = [];
         this.resetArray = [];
 
-        this.elements = this.form.form.elements;
+        this.elements = this.scope.elements;
     }
 
     reset(item) {
@@ -972,7 +953,7 @@ class ResetHelpers {
             if (item.type === "radio" || item.type === "checkbox") continue;
             this.reset(item);
         }
-        clearAllClassValidateHelpers(this.form.form);
+        clearAllClassValidateHelpers(this.scope);
     }
     resetInArray() {
         // cập nhật lại ngày tháng
@@ -986,22 +967,22 @@ class ResetHelpers {
             // Nếu tên phần tử nằm trong mảng notRest, bỏ qua phần tử đó
             if (this.resetArray.includes(item.name)) this.reset();
         }
-        clearAllClassValidateHelpers(this.form.form);
+        clearAllClassValidateHelpers(this.scope);
     }
 }
 
 class BaseFormHelpers extends RequestServerHelpers {
-    constructor(api, formSelector, validations, modalSelector = "") {
+    constructor(api, formSelector, validations, modalSelector = "", priceFormat = [], dateFormat = []) {
         super(api);
         // lưu trữ khi khởi tạo form
         this.form = document.querySelector(formSelector);
         this.api = api;
         this.method = "post";
-
+        
         this.layout = "";
         this.debug = "";
-        this.priceFormat = [];
-        this.dateFormat = [];
+        this.priceFormat = priceFormat;
+        this.dateFormat = dateFormat;
         this.subdata = {};
 
         this.exportExcel = false;
@@ -1014,19 +995,17 @@ class BaseFormHelpers extends RequestServerHelpers {
         // mặc định khởi tạo choice
         this.choice.startChoice();
         this.dataChoice = this.choice.choice;
+
+        this.event = new EventHelpers(this.form);
+        this.select = new SelectHelpers(this.dataChoice, this.event, this.form);
+
+        this.validate = new ValidateHelpers(this, validations);
         this.datePicker = new DatePickerHelpers(this.form);
         // mặc định khởi tạo date picker
         this.datePicker.initialize();
-
-        this.event = new EventHelpers(this.form);
-        this.select = new SelectHelpers(this);
-
-        this.validate = new ValidateHelpers(this, validations);
-        this.modal = new ModalHelpers(this, modalSelector, this.api);
-        this.reset = new ResetHelpers(this);
+        this.reset = new ResetHelpers(this.form, this.dataChoice, this.datePicker);
+        this.modal = new ModalHelpers(modalSelector, this.form, this.dataChoice, this.reset, this.api, this.priceFormat, this.dateFormat);
         this.file = new FileHelpers();
-        this.url = new URLHelpers();
-
     }
 
     // Hàm có tác dụng lấy dữ liệu trong form
@@ -1049,72 +1028,6 @@ class BaseFormHelpers extends RequestServerHelpers {
         collectElements(inputs);
 
         return data;
-    }
-
-    /**
-     * hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
-     * @param {object} data Dữ liệu cần sét
-     */
-    setFormData(data) {
-        // Lấy tất cả các phần tử trong form
-        const elements = this.form.elements;
-
-        for (let dom of elements) {
-            let name = dom.getAttribute("name");
-            // tìm kiếm và lấy dữ liệu của data dựa vào name thẻ
-            if (name && data.hasOwnProperty(name)) {
-                let value = data[name];
-                this.applyAttributeData(dom, value)
-            }
-        }
-    }
-
-    /**
-     * hàm có tác dụng kiểm tra thuộc tính của thẻ và thêm dữ liệu tương ứng cho nó
-     * @param {dom} dom Thẻ cần sét dữ liệu
-     * @param {*} value Dữ liệu được sét vào thẻ
-     */
-    applyAttributeData(dom, value) {
-        // Lấy tên và loại của input
-        const name = dom.name;
-        const domType = dom.type;
-        const isInputOrTextarea = dom.tagName === "INPUT" || dom.tagName === "TEXTAREA";
-
-        // Xử lý radio và checkbox
-        if (["radio", "checkbox"].includes(domType)) {
-            const values = Array.isArray(value) ? value.map(String) : [String(value)];
-            dom.checked = values.includes(String(dom.value));
-        }
-
-        // Xử lý Choices.js
-        else if (dom.hasAttribute("data-choice")) {
-            const id = dom.getAttribute("id");
-            const choiceInstance = this.dataChoice[`#${id}`];
-            if (!choiceInstance) {
-                console.error(`Không tìm thấy id này #${id} ở trong form.`);
-                return;
-            }
-            if (dom.multiple && Array.isArray(value)) {
-                value.forEach(item => choiceInstance.setChoiceByValue(String(item)));
-            } else {
-                choiceInstance.setChoiceByValue(String(value));
-            }
-        }
-
-        // Xử lý các loại input khác
-        else{
-            if (value) {
-                if (this.priceFormat.includes(name)) {
-                    dom.value = numberFormatHelpers(value);
-                } else if (this.dateFormat.includes(name)) {
-                    dom.value = dateTimeFormat(value);
-                } else if (isInputOrTextarea) {
-                    dom.value = value;
-                } else {
-                    dom.innerHTML = value;
-                }
-            }
-        }
     }
 
     /**
@@ -1290,9 +1203,8 @@ class FormHelpers extends BaseFormHelpers {
      * @param {boolean} [debug=false] Bật chế độ debug để kiểm tra response
      * {boolean} [startHandleFormSubmit=false] Xác định xem có tự động khởi tạo submit hay không
      */
-    constructor(formSelector, validations, api, method, layout, modal, debug = false) {
-        super(api, formSelector, validations, modal); // Gọi hàm khởi tạo của lớp cha
-
+    constructor(formSelector, validations, api, method, layout, modal, priceFormat = [], dateFormat = [], debug = false) {
+        super(api, formSelector, validations, modal, priceFormat, dateFormat); // Gọi hàm khởi tạo của lớp cha
         this.layout = layout;
         this.method = method;
         this.debug = debug;
@@ -1322,6 +1234,7 @@ class FormHelpers extends BaseFormHelpers {
         let response = await this.sendFormData(data, this.method, this.debug);
         if (this.debug == false && response !== false && this.handleResponse(response)) {
             this.finalizeForm(response);
+            this.reset.resetForm();
             return { status: true, data: response.data };
         }
     }
@@ -1353,14 +1266,13 @@ class FormHelpers extends BaseFormHelpers {
     }
 }
 
-
 /**class thao tác với form chứa tabel. Tức là khi bạn ấn submit form mà chưa muốn gọi api giửi đi mà muốn hiển thị lại giao diện cho ngừơi dùng xem
  * Thực hiện khởi tạo form như bình thường
  * Trong trường hợp table của bạn có chứa các ô input để nhập dữ liệu thì cần sét thuộc tính formInTable = true
 */
 class FormTableHelpers extends BaseFormHelpers {
-    constructor(formSelector, validations, api, layout, template, modal, debug = false) {
-        super(api, formSelector, validations, modal);
+    constructor(formSelector, validations, api, layout, template, modal, priceFormat = [], dateFormat = [], debug = false) {
+        super(api, formSelector, validations, modal, priceFormat = [], dateFormat = []);
 
         this.debug = debug;
         this.layout = layout;
@@ -1522,8 +1434,9 @@ class FormTableHelpers extends BaseFormHelpers {
  * @param {object} layout đối tượng layout cần khởi tạo
  */
 class FormFilterHelpers extends BaseFormHelpers {
-    constructor(api, formSelector, layout) {
-        super(api, formSelector);
+    constructor(api, formSelector, layout, priceFormat = [], dateFormat = []) {
+        super(api, formSelector, [], "", priceFormat, dateFormat);
+        this.url = new URLHelpers();
         this.keysToKeep = [];
         this.defaultKeysToKeep = ["page", "show_all"];
         this.layout = layout;
@@ -1572,7 +1485,7 @@ class FormFilterHelpers extends BaseFormHelpers {
 
         // Kiểm tra xem có URL param hay không và đặt dữ liệu vào form
         let dataParams = this.url.getParams();
-        if (Object.keys(dataParams).length > 0) this.setFormData(dataParams);
+        if (Object.keys(dataParams).length > 0) setFormData(dataParams, this.form, this.dataChoice, this.priceFormat, this.dateFormat);
 
         if (!this.hasEventListener) {
             this.form.addEventListener("submit", async (e) => {
@@ -1618,7 +1531,7 @@ class FormFilterHelpers extends BaseFormHelpers {
             // thực hiện lấy ra params default
             let dataParams = this.layout.getDefaultParam();
             // đưa params default vào form
-            if (Object.keys(dataParams).length > 0) this.setFormData(dataParams);
+            if (Object.keys(dataParams).length > 0) setFormData(dataParams, this.form, this.dataChoice, this.priceFormat, this.dateFormat);
             await this.layout.renderUI(); // Gọi API và cập nhật giao diện
 
             this.toggleLoading(buttonFilter, false, originalText);

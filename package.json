@@ -1,6 +1,6 @@
 {
   "name": "helpers_asfy_tech",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Giúp code js đơn giản hơn khi làm việc tại ASFY Tech. Tài liệu: https://github.com/0359689640Diep/helpers.git",
   "main": "core.js", 
    "scripts": {

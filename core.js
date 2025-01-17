@@ -1,8 +1,5 @@
 /**Tác giả: Vũ Hồng Điệp */
 import { formatApiUrl, check } from "./coreFunctions.js";
-// xác định message trả về
-const messageError = "error";
-const messageSussces = "success";
 
 /**
  * class giao tiếp với server
@@ -80,20 +77,17 @@ class RequestServerHelpers {
    * @param {string} [api=""] Nhận vào api xóa dữ liệu
    */
   async requestData(method, api = "") {
-    const formatAPI = api === "" ? this.route : api;
-    const response = await axios({
-      method: method,
-      url: formatAPI,
-      params: this.params,
-    });
-    if (this.statusMessage) {
-      if (response.data.status >= 400) {
-        showErrorMD(response.data[messageError]);
-      } else {
-        showMessageMD(response.data[messageSussces]);
-      }
+    try {
+      const formatAPI = api === "" ? this.route : api;
+      const response = await axios({
+        method: method,
+        url: formatAPI,
+        params: this.params,
+      });
+      return response.data; // Trả về dữ liệu thành công
+    } catch (error) {
+      return error.response.data;
     }
-    return response.data; // Trả về dữ liệu thành công
   }
 }
 
@@ -319,7 +313,7 @@ class ConfirmHelpers {
     });
 
     this.btnCancel.addEventListener("click", async (e) => {
-      if(this.config.cancel){
+      if (this.config.cancel) {
         this.config.cancel(e);
       }
       this.modalBT.hide();
