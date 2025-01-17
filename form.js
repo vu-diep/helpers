@@ -194,6 +194,7 @@ class ValidateHelpers {
                 }
             } else {
                 let type = item.getAttribute("type");
+                let name = item.getAttribute("name");
 
                 if (type === "file") {
                     if (item.multiple) {
@@ -204,9 +205,20 @@ class ValidateHelpers {
                 } else if (item.tagName === "SELECT" && item.multiple) {
                     const id = item.getAttribute("id");
                     const choiceSelect = this.form.dataChoice[`#${id}`];
-                    const value = choiceSelect.getValue().map(item => item.value);
+                    const choiceSelectObject = choiceSelect.getValue();
+                    const value = choiceSelectObject.map(item => item.value);
+                    const label = choiceSelectObject.map(item => item.label);
                     data[key] = value;
+                    // Lấy text của select nếu textSelect = true
+                    if (textSelect) {
+                        data[`text_${name}`] = label;
+                    }
                 } else {
+
+                    // Lấy text của select nếu textSelect = true
+                    if (textSelect && item.tagName.toLowerCase() === "select") {
+                        data[`text_${name}`] = item.textContent;
+                    }
                     data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
                 }
             }
@@ -215,7 +227,7 @@ class ValidateHelpers {
     }
 
 
-    collectFormElements(textSelect) {
+    collectFormElements() {
         const elements = [...this.form.form.querySelectorAll("select, input, textarea")];
         const dom = {};
 
@@ -233,10 +245,6 @@ class ValidateHelpers {
                     dom[name] = item;
                 }
 
-                // Lấy text của select nếu textSelect = true
-                if (textSelect && item.tagName.toLowerCase() === "select") {
-                    dom[`text${name}`] = item.textContent;
-                }
             }
         });
         return dom;
@@ -464,8 +472,8 @@ class SelectHelpers extends RequestServerHelpers {
     }
 
 
-    /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ select khác
-     * @param {string} selectChange ID, Class của thẻ được chọn
+    /**Hàm có tác dụng lắng nghe sự change của 1 thẻ select và gọi API và đổ dữ liệu ra 1 thẻ select khác
+     * @param {string} selectChange ID, Class của thẻ được lắng nghe
      * @param {string} selectEeceive ID, Class của thẻ được nhận
      * @param {string} api api nhận lấy ra dữ liệu
      * @param {string} key là phần tham số mặc định cần gửi đi sau khi lắng nghe được sự kiện change,
@@ -978,7 +986,7 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.form = document.querySelector(formSelector);
         this.api = api;
         this.method = "post";
-        
+
         this.layout = "";
         this.debug = "";
         this.priceFormat = priceFormat;
@@ -1272,7 +1280,7 @@ class FormHelpers extends BaseFormHelpers {
 */
 class FormTableHelpers extends BaseFormHelpers {
     constructor(formSelector, validations, api, layout, template, modal, priceFormat = [], dateFormat = [], debug = false) {
-        super(api, formSelector, validations, modal, priceFormat = [], dateFormat = []);
+        super(api, formSelector, validations, modal, priceFormat, dateFormat);
 
         this.debug = debug;
         this.layout = layout;

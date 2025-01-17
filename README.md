@@ -11,7 +11,7 @@
 
 </p>
 - Tải thư viện: Khi bạn tiếp cận với một base code mới do quản lý cấp việc đầu tiên của bạn là chạy câu lệnh sau:
-<p><code> npm install helpers-vu_diep@latest</code></p>
+<p><code> npm install helpers_asfy_tech@latest</code></p>
 Mục đích nhằm cập nhật phiên bản mới nhất về. Với các phiên bản ^1.1.7 thì chỉ sử dụng
 với base laravel.
 <p>- Sử dụng câu lệnh sau để tạo file view: <code> php artisan make:view tai-san/tai-san-co-dinh --d </code></p>
@@ -84,6 +84,16 @@ request.
 * Bạn đang thắc mắc là đối với phương thức put thì id sẽ để ở đâu đúng không ? Đừng vội tôi sẽ chỉ cho bạn thấy cách tôi
 đưa id vào với method put ngay đây.
 ![alt text](assets/images/image-4.png)
+
+<b>1.3 Phương thức requestData:</b> Phương thức có tác dụng gửi dữ liệu với method do chúng ta quyết định và trả về
+object sau khi gửi request. Phương thức này thường được dùng cho việc xóa, hoặc cập nhận trạng thái
+
+<h5>- Giới thiệu các thuộc tính:</h5>
+
+* method: Loại method truyền vào
+* api: Tham số này giúp bạn linh hoạt gọi các api khác mà không phải khởi tạo lại class. Nếu bạn không truyền thì nó mặc
+định sẽ lấy ra api bạn truyền vào khi khởi tạo class.
+![alt text](assets/images/image-21.png)
 
 <h4>2. Class EventHelpers: Class này có tác dụng lắng nghe sự kiện của 1 thẻ.</h4>
 
@@ -278,8 +288,14 @@ scope nó vẫn sẽ hiểu và lắng nghe.
             <li>formSelector: Id hoặc class của form</li>
             <li>validations: Bản thiết kế được sử dụng để validate</li>
             <li>modalSelector: Id hoặc class của modal</li>
+            <li>priceFormat: Một mảng chứa các trường thuộc loại tiền cần format</li>
+            <li>dateFormat: Một mảng chứa các trường thuộc loại thời gian cần format</li>
         </ul>
     </li>
+    <span>
+        <strong>Lưu ý: </strong>
+        <span>Khi sử dụng priceFormat, dateFormat bạn mở modal nó sẽ tự tự động format về dạng tiền Việt, hoặc thời gian theo dạng dd/mm/YYYY để giúp người dùng dễ nhìn hơn. Khi bạn thực hiện gửi dữ liệu lên backend sẽ tự động format bỏ dấu phẩy hoặc đưa về dạng YYYY/mm/dd giúp bạn.</span>
+    </span>
     <li>Các thuộc tính động
         <ul>
             <li>method: Phương thức được gửi đi mặc định là post</li>
@@ -288,7 +304,8 @@ scope nó vẫn sẽ hiểu và lắng nghe.
             <li>priceFormat: Là một mảng lưu các giá cần format trước khi gửi lên backend</li>
             <li>dateFormat: Là một mảng lưu các thời gian cần format trước khi gửi lên backend</li>
             <li>subdata: Dữ liệu phụ được dưa từ bên ngoài trước khi gửi lên backend</li>
-            <li>exportExcel: Lưu trạng thái có xuất excel sau khi submit. Nếu muốn xuất excel sau khi gửi dữ liệu thì truyền vào một object
+            <li>exportExcel: Lưu trạng thái có xuất excel sau khi submit. Nếu muốn xuất excel sau khi gửi dữ liệu thì
+                truyền vào một object
                 <p>Cấu trúc:
                     <code>
                         form.exportExcel = {api: '/api/tai-san-co-dinh?export-excel': "", key: "id"}
@@ -334,31 +351,23 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 
 ![alt text](assets/images/image-17.png)
 
-<b>1.2 setFormData: </b> <span>Hàm có tác dụng đưa dữ liệu vào trong 1 form.</span>
+<b>1.2 formatData: </b> <span>Hàm có tác dụng định dạng lại dữ liệu trước khi gửi lên backend.</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
-    <li>data: Một object chứa dữa liệu đưa vào form. key là tên trường value là dữ liệu
-    </li>
-</ul>
-
-![alt text](assets/images/image-18.png)
-
-<b>1.3 formatData: </b> <span>Hàm có tác dụng định dạng lại dữ liệu trước khi gửi lên backend.</span>
-<h5>- Giới thiệu các thuộc tính:</h5>
-<ul>
-    <li>data: Một object chứa dữa liệu đưa vào form. key là tên trường value là dữ liệu cần format
-    </li>
+    <li>data: Một object chứa dữa liệu đưa vào form. key là tên trường value là dữ liệu cần format </li>
+    <li>statusTable: Phân biệt giữa đó có là form thường hay form chứa bảng </li>
 </ul>
 
 ![alt text](assets/images/image-19.png)
 
-<b>1.4 handleResponse: </b> <span>Hàm có tác dụng kiểm tra và xử lý phản hồi từ API. Thực hiện chạy responseHandler khi
+<b>1.3 handleResponse: </b> <span>Hàm có tác dụng kiểm tra và xử lý phản hồi từ API. Thực hiện chạy responseHandler khi
     status hợp lệ, thực hiện hàm showError khi lỗi lớn hơn 400</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
     <li>res: Response sau khi truy vấn</li>
 </ul>
-<b>1.5 showError: </b> <span>Hàm có tác dụng hiển thị lỗi khi response trả về lỗi. Nếu status là 403 hoặc 422 thì thông báo lỗi ra form thông qua việc gọi hàm showErrorResponse</span>
+<b>1.4 showError: </b> <span>Hàm có tác dụng hiển thị lỗi khi response trả về lỗi. Nếu status là 403 hoặc 422 thì thông
+    báo lỗi ra form thông qua việc gọi hàm showErrorResponse</span>
 <h5>- Giới thiệu các thuộc tính:</h5>
 <ul>
     <li>errorData: Dữ liệu lỗi trả về</li>
@@ -366,7 +375,7 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 
 ![alt text](assets/images/image-20.png)
 
-<b>1.6 finalizeForm: </b> <span>Hàm có tác dụng xử lý kết thúc sau khi submit form. Công việc cụ thể như: Ẩn modal,
+<b>1.5 finalizeForm: </b> <span>Hàm có tác dụng xử lý kết thúc sau khi submit form. Công việc cụ thể như: Ẩn modal,
     Reset form, Xuất excel
 </span>
 
@@ -374,3 +383,114 @@ scope nó vẫn sẽ hiểu và lắng nghe.
 <ul>
     <li>res: Response sau khi truy vấn</li>
 </ul>
+
+![alt text](assets/images/image-22.png)
+
+<b>1.7 addFromData: </b> <span>Hàm có tác dụng chuyển data sang dạng FromData trước khi gửi lên backend</span>
+
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>data: Object dữ liệu cần chuyển</li>
+</ul>
+
+<b>1.8 sendFormData: </b> <span>Hàm có tác dụng gửi dữ liệu lên backend dựa vào method. Hiện tại đang hỗ trợ put và post</span>
+
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>data: Object dữ liệu cần gửi</li>
+    <li>method: Method gửi đi</li>
+    <li>debug: Debug nếu == true thì chương trình sẽ dừng sau khi gửi nhận response</li>
+</ul>
+
+<h4>2. ModalHelpers class này thực hiện thao tác với modal.</h4>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>modalSelector: Id hoặc class của modal</li>
+    <li>scope: Phạm vi được cho phép nếu không truyền mặc định sẽ là document</li>
+    <li>dataChoice: Một mảng chứa các đối tượng choice đã được khởi tạo bằng class ChoiceHelpers</li>
+    <li>api: API được sử dụng khi bạn thực hiện mở modal edit</li>
+    <li>priceFormat, dateFormat: Một mảng chứa các tên của trường cần format để người dùng dễ nhìn hơn</li>
+</ul>
+<h5>- Giới thiệu các phương thức:</h5>
+<b>2.1 startModal: </b> <span>Hàm có tác dụng khởi tạo mở modal. Thường dùng cho việc gửi dữ liệu</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>bntStartModal: id hoặc class dùng để thực hiện lắng nghe sự kiện mở modal. Nếu không truyền thì modal sẽ tự động mở</li>
+    <li>dataDefault: dữ liệu mặc định được đổ vào form khi mở modal</li>
+</ul>
+
+![alt text](assets/images/image-23.png)
+<b>2.1 startModalEdit: </b> <span>Hàm có tác dụng khởi tạo mở modal edit. Thường dùng cho việc sửa dữ liệu</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>id: id cần gửi đi</li>
+    <li>params: params phụ mà bạn muốn gửi kèm thêm</li>
+</ul>
+
+![alt text](assets/images/image-24.png)
+
+<h4>3. ValidateHelpers class này thực hiện thao tác với việc validate form.</h4>
+<span>
+    <strong>Lưu ý: </strong>
+    <span>Khi bạn khởi tạo BaseFormHelpers, FormHelpers, FormTableHelpers, FormFilterHelpers thì có thể sử dụng class ValidateHelpers thông qua thuộc tính <strong>validate</strong> vì ValidateHelpers phụ thuộc mật thiết vào class BaseFormHelpers.</span>
+</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>form: Đối tượng sau khi khởi tạo BaseFormHelpers</li>
+    <li>validations: Một mảng chứa các object các điều kiện cần validate</li>
+</ul>
+<h5>- Giới thiệu các phương thức:</h5>
+<b>3.1 validateForm: </b> <span>Hàm có tác dụng thực hiện validate trong form</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>textSelect: Nếu có thẻ select mà bạn muốn lấy ra cả nội dung đã chọn ở trong ô option thì truyền vào với thuộc tính là true</li>
+</ul>
+<span>
+    <strong>Lưu ý: </strong>
+    <span>Khi gọi hàm validateForm sẽ trả về false nếu validate chưa đạt yêu cầu so với điều kiện. Và trả về object data khi đã thỏa mãn hết điều kiện</span>
+</span>
+
+![alt text](assets/images/image-25.png)
+![alt text](assets/images/image-26.png)
+
+<h4>4. SelectHelpers class này thực hiện thao tác với thẻ select.</h4>
+<span>
+    <strong>Lưu ý: </strong>
+    <span>Khi bạn khởi tạo BaseFormHelpers, FormHelpers, FormTableHelpers, FormFilterHelpers thì có thể sử dụng class SelectHelpers thông qua thuộc tính <strong>select</strong> vì SelectHelpers được khởi tạo trong class BaseFormHelpers.</span>
+</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>dataChoice: Object chứa các đối tượng choice đã được khởi tạo từ class choice</li>
+    <li>event: Đối tượng được khởi tạo từ class event</li>
+    <li>scope: Phạm vi có thể truy cập được của thẻ select. Nếu không truyền thì phạm vi là document</li>
+</ul>
+<h5>- Giới thiệu các phương thức:</h5>
+<b>4.1 eventListenerChange: </b> <span>Hàm có tác dụng lắng nghe sự change của 1 thẻ select và gọi API và đổ dữ liệu ra 1 thẻ select khác</span>
+<h5>- Giới thiệu các thuộc tính:</h5>
+<ul>
+    <li>selectChange: ID, Class của thẻ được lắng nghe.</li>
+    <li>selectEeceive: ID, Class của thẻ được nhận.</li>
+    <li>api: Api nhận lấy ra dữ liệu.</li>
+    <li>key: Là phần tham số mặc định cần gửi đi sau khi lắng nghe được sự kiện change.</li>
+    <li>label: Là phần ky khi api trả về nhận vào value của thẻ option.</li>
+    <li>
+        <span>
+            <strong>Lưu ý: </strong>
+            <p>Trong trường hợp bạn có nhiều label thì hãy truyền theo dạng mảng lúc này label của bạn sẽ là value - value ....</p>
+            <p>Trong trường hợp bạn muốn cấu hình message thì bạn có thể truyền vào 1 object như sau{"Giá trị 1": GT1, "Giá trị 2": GT2}</p>
+        </span>
+    </li>
+    <li>labelDefault: Là phần value của thẻ option luôn được hiển thị mặc định</li>
+    <li>getParams: Là 1 callback dùng để lấy các điều kiện phụ trước khi gửi dữ liệu</li>
+    <li>
+        <strong>VD:</strong>
+        <code>
+            const getParamsFactoryAdd = () => { <br>
+                let factory_id = domFormAdd.querySelector("#factory_id");<br>
+                return { factory_id: factory_id.value.trim() };<br>
+            }<br>
+            formAdd.select.eventListenerChange("#resources_type", "#resource_id", "/api/vat-tu", "resources_type_id", label, "Chọn vật tư", getParamsFactoryAdd);
+        </code>
+    </li>
+</ul>
+
