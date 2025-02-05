@@ -1,5 +1,5 @@
 import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core.js";
-import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers, checkDom, applyAttributeData, setFormData } from "./coreFunctions.js";
+import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers, checkDom, applyAttributeData, setFormData, getFormData, collectFormElements } from "./coreFunctions.js";
 import { removeCommasHelpers } from "./common.js";
 
 /**Class làm việc với modal */
@@ -118,7 +118,7 @@ class ModalHelpers extends RequestServerHelpers {
             this.newModal.show();
             // Ẩn form và đóng modal
             this.hideLoading();
-            if (this.scope) {
+            if (this.scope && this.scope !== document) {
                 this.scope.style.display = this.flexForm ? "flex" : "block";
             }
         }
@@ -176,80 +176,11 @@ class ValidateHelpers {
     }
 
     validateForm(textSelect = false) {
-        const dom = this.collectFormElements(textSelect);
-        const data = {};
+        const dom = collectFormElements(this.form.form);
         if (!this.runValidation(dom)) return false;
-        for (let key in dom) {
-            let item = dom[key];
-            if (item && typeof item === "object" && !item.tagName) {
-                // Nếu thỏa mãn điều kiện, gán dữ liệu vào mảng data[key]
-                data[key] = [];
-                for (let subKey in item) {
-                    if (item.hasOwnProperty(subKey)) {
-                        let input = item[subKey];
-                        if (input.checked) {
-                            data[key].push(input.value);
-                        }
-                    }
-                }
-            } else {
-                let type = item.getAttribute("type");
-                let name = item.getAttribute("name");
-
-                if (type === "file") {
-                    if (item.multiple) {
-                        data[key] = item.files;
-                    } else {
-                        data[key] = item.files[0];
-                    }
-                } else if (item.tagName === "SELECT" && item.multiple) {
-                    const id = item.getAttribute("id");
-                    const choiceSelect = this.form.dataChoice[`#${id}`];
-                    const choiceSelectObject = choiceSelect.getValue();
-                    const value = choiceSelectObject.map(item => item.value);
-                    const label = choiceSelectObject.map(item => item.label);
-                    data[key] = value;
-                    // Lấy text của select nếu textSelect = true
-                    if (textSelect) {
-                        data[`text_${name}`] = label;
-                    }
-                } else {
-
-                    // Lấy text của select nếu textSelect = true
-                    if (textSelect && item.tagName.toLowerCase() === "select") {
-                        data[`text_${name}`] = item.textContent;
-                    }
-                    data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
-                }
-            }
-        }
+        let data = getFormData(dom, this.form.dataChoice, textSelect);
         return data;
     }
-
-
-    collectFormElements() {
-        const elements = [...this.form.form.querySelectorAll("select, input, textarea")];
-        const dom = {};
-
-        elements.forEach((item) => {
-            let name = item.getAttribute("name");
-            if (name) {
-                if (item.type === "checkbox" || item.type === "radio") {
-                    // Nếu chưa tồn tại mảng cho checkbox thì khởi tạo
-                    if (!dom[name]) {
-                        dom[name] = {};
-                    }
-                    // Thêm checkbox vào mảng
-                    dom[name][item.value] = item;
-                } else {
-                    dom[name] = item;
-                }
-
-            }
-        });
-        return dom;
-    }
-
 
     validateRow(tbodySelector) {
         const rows = tbodySelector.querySelectorAll("tr");
@@ -294,7 +225,7 @@ class ValidateHelpers {
                 if (field && typeof field === "object" && !field.tagName) {
                     if (!this.checkMultipleFieldsWithCheckboxAttribute(field, condition, message, whereToReportBugs)) return false;
                 } else {
-                    if (!this.checkSingleField(field, condition, message)) return false;
+                    if (field && !this.checkSingleField(field, condition, message)) return false;
                 }
             }
         }
@@ -390,7 +321,9 @@ class ValidateHelpers {
             changeValidateMessage(field, true, `Số lượng phải nhỏ hơn hoặc bằng ${field.getAttribute("max-custom")}`, ["p-2", "small"]);
             return false;
         }
-        changeValidateMessage(field, false, "", []);
+        if(field.getAttribute("type") != "hidden"){
+            changeValidateMessage(field, false, "", []);
+        }
         return true;
     }
 
@@ -472,8 +405,8 @@ class SelectHelpers extends RequestServerHelpers {
     }
 
 
-    /**Hàm có tác dụng lắng nghe sự change của 1 thẻ select và gọi API và đổ dữ liệu ra 1 thẻ select khác
-     * @param {string} selectChange ID, Class của thẻ được lắng nghe
+    /**Lắng nghe sự change và gọi API của 1 thẻ select và đổ dữ liệu ra 1 thẻ select khác
+     * @param {string} selectChange ID, Class của thẻ được chọn
      * @param {string} selectEeceive ID, Class của thẻ được nhận
      * @param {string} api api nhận lấy ra dữ liệu
      * @param {string} key là phần tham số mặc định cần gửi đi sau khi lắng nghe được sự kiện change,
@@ -1016,28 +949,6 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.file = new FileHelpers();
     }
 
-    // Hàm có tác dụng lấy dữ liệu trong form
-    getFormData() {
-        let data = [];
-        let selects = this.form.querySelectorAll("select");
-        let inputs = this.form.querySelectorAll("input");
-
-        // Thu thập tất cả các thẻ select, input, textarea vào đối tượng dom
-        let collectElements = (elements) => {
-            elements.forEach((item) => {
-                let name = item.getAttribute("name");
-                if (name && item.value) {
-                    data[name] = item.value.trim();
-                }
-            });
-        };
-
-        collectElements(selects);
-        collectElements(inputs);
-
-        return data;
-    }
-
     /**
      * @param {boolean} [statusTable=false] Trạng thái khi format dữ liệu cho table form. Mặc định là không
      * Định dạng dữ liệu trước khi gửi lên backend (price, date)
@@ -1178,7 +1089,7 @@ class BaseFormHelpers extends RequestServerHelpers {
         var response;
         switch (method.toLowerCase()) {
             case "post":
-                response = await this.postData(data, debug);
+                response = await this.postData(data, debug, this.api);
                 break;
             case "put":
                 response = await this.putData(data, debug, this.api);
@@ -1264,7 +1175,6 @@ class FormHelpers extends BaseFormHelpers {
             if (typeof this.callback === "function") {
                 this.callback(response);
             }
-
             btnLoading(submitButton, false, submitButtonText);
 
             if (response && response.status) {
@@ -1500,7 +1410,8 @@ class FormFilterHelpers extends BaseFormHelpers {
                 e.preventDefault();
 
                 this.toggleLoading(submitButton, true);
-                let data = this.getFormData();
+                const dom = collectFormElements(this.form);
+                let data = getFormData(dom, this.dataChoice);
                 let keysToKeep = [...this.defaultKeysToKeep, ...this.keysToKeep];
                 this.url.removeParamsExcept(keysToKeep); // Xóa các param trừ những param cần giữ lại
                 this.url.addParamsToURL(data); // Đưa các param lên URL

@@ -131,7 +131,7 @@ function numberFormatHelpers(numberString, max = 0, groupSeparator = ",", decima
   return customFormattedNumber;
 }
 
-const dateTimeFormatHelpers = (date, format = "d-m-Y") => {
+const dateTimeFormatHelpers = (date, format = "d/m/Y") => {
   let currentDate;
   if (date == "0000-00-00 00:00:00" || date == "0000-00-00" || date == "") {
     return "";
@@ -203,9 +203,9 @@ function applyAttributeData(dom, value, dataChoice, priceFormat, dateFormat) {
   // Xử lý các loại input khác
   else {
     if (value) {
-      if (priceFormat.includes(name)) {
+      if (Array.isArray(priceFormat) && priceFormat.includes(name)) {
         dom.value = numberFormatHelpers(value);
-      } else if (dateFormat.includes(name)) {
+      } else if (Array.isArray(dateFormat) && dateFormat.includes(name)) {
         dom.value = dateTimeFormatHelpers(value);
       } else if (isInputOrTextarea) {
         dom.value = value;
@@ -235,4 +235,137 @@ function setFormData(data, form, dataChoice, priceFormat, dateFormat) {
   }
 }
 
-export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers, isEmptyObject, checkDom, applyAttributeData, setFormData };
+/**
+ * Hàm có tác dụng thực hiện lấy dữ liệu từ một dom được truyền vào. Chưa làm xong
+ * @param {*} item 
+ * @param {*} dataChoice 
+ * @param {*} textSelect 
+ * @returns 
+ */
+function getAttributeData(item, dataChoice, textSelect) {
+  let data = {};
+  if (item && typeof item === "object" && !item.tagName) {
+    // Nếu thỏa mãn điều kiện, gán dữ liệu vào mảng data[key]
+    data[key] = [];
+    for (let subKey in item) {
+      if (item.hasOwnProperty(subKey)) {
+        let input = item[subKey];
+        let value = input.value;
+        if (input.checked) {
+          if (input.type === "radio") {
+            data[key] = value;
+          } else {
+            data[key].push(value);
+          }
+        }
+      }
+    }
+  } else {
+    let type = item.getAttribute("type");
+    let name = item.getAttribute("name");
+
+    if (type === "file") {
+      if (item.multiple) {
+        data[key] = item.files;
+      } else {
+        data[key] = item.files[0];
+      }
+    } else if (item.tagName === "SELECT" && item.multiple) {
+      const id = item.getAttribute("id");
+      const choiceSelect = dataChoice[`#${id}`];
+      const value = choiceSelect.getValue().map(item => item.value);
+      data[key] = value;
+    } else {
+      data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
+      // Lấy text của select nếu textSelect = true
+      if (textSelect && item.tagName.toLowerCase() === "select") {
+        data[`text_${name}`] = item.textContent;
+      }
+    }
+  }
+  return data;
+}
+
+/**
+ * Hàm có tác dụng lấy dữ liệu từ một object dom và trả về một object data
+ * @param {object} dom chứa các dom cần lấy dữ liệu
+ * @param {object} dataChoice chứa các đối tượng choice đã được khởi tạo
+ * @param {boolean} textSelect xác định xem có lấy nội dung bên trong thẻ select không. Mặc định là không
+ * @returns 
+ */
+function getFormData(dom, dataChoice, textSelect = false) {
+  let data = {};
+  for (let key in dom) {
+    if (dom.hasOwnProperty(key)) {
+      let item = dom[key];
+      if (item && typeof item === "object" && !item.tagName) {
+        // Nếu thỏa mãn điều kiện, gán dữ liệu vào mảng data[key]
+        data[key] = [];
+        for (let subKey in item) {
+          if (item.hasOwnProperty(subKey)) {
+            let input = item[subKey];
+            let value = input.value;
+            if (input.checked) {
+              if (input.type === "radio") {
+                data[key] = value;
+              } else {
+                data[key].push(value);
+              }
+            }
+          }
+        }
+      } else {
+        let type = item.getAttribute("type");
+        let name = item.getAttribute("name");
+
+        if (type === "file") {
+          if (item.multiple) {
+            data[key] = item.files;
+          } else {
+            data[key] = item.files[0];
+          }
+        } else if (item.tagName === "SELECT") {
+          const id = item.getAttribute("id");
+          const choiceSelect = dataChoice[`#${id}`];
+          let valueChoice = choiceSelect.getValue();
+          // nếu thẻ select cho phép chọn nhiều thì lấy ra danh sách mảng dữ liệu đã chọn còn không thì lấy giá trị của thẻ select
+          const value = item.multiple ? valueChoice.map(item => item.value) : valueChoice.value;
+          data[key] = value;
+          // Lấy text của select nếu textSelect = true
+          if (textSelect && item.tagName.toLowerCase() === "select") {
+            data[`text_${name}`] = item.textContent;
+          }
+        } else {
+          data[key] = (item instanceof HTMLElement) ? item.value.trim() : item.trim();
+        }
+      }
+    }
+  }
+  return data;
+}
+
+/**Hàm có tác dụng lấy ra toàn bộ các dom nhận vào dư liệu ở trong form. Và trả về object các dom đó
+ * @param {HTML} scope phạm vi được được phép lấy dữ liệu
+ */
+function collectFormElements(scope) {
+  const elements = scope.querySelectorAll("select, input, textarea");
+  const dom = {};
+
+  elements.forEach((item) => {
+      let name = item.getAttribute("name");
+      if (name) {
+          if (item.type === "checkbox" || item.type === "radio") {
+              // Nếu chưa tồn tại mảng cho checkbox thì khởi tạo
+              if (!dom[name]) {
+                  dom[name] = {};
+              }
+              // Thêm checkbox vào mảng
+              dom[name][item.value] = item;
+          } else {
+              dom[name] = item;
+          }
+      }
+  });
+  return dom;
+}
+export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers, isEmptyObject, checkDom, applyAttributeData, setFormData, getAttributeData, getFormData, collectFormElements };
