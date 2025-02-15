@@ -141,4 +141,32 @@ function getDateRange() {
   return `${formatDate(startOfMonth)} đến ${formatDate(now)}`;
 }
 
-export {removeCommasHelpers, codeAutoGenerationHelpers, generateCode, checkOutput, codeGenerationHelpers, priceToText, formatNumberAndCheckEmpty, roundToDecimalHelpers, getDateRange}
+/**
+ * Hàm có tác dụng dựa vào thời gian đã cho và tính toán ra thời gian động hiện tại 
+ * @param {string} targetTime thời gian đặt ra
+ * @returns chuỗi thời gian có dạng: Ngày, giờ, phút, giây. VD: 0 ngày, 0 giờ, 3 phút, 46 giây
+ */
+function calculateTimeDifference(targetTime) {
+  // Chuyển chuỗi thời gian từ backend thành đối tượng Date
+  const targetDate = new Date(targetTime);
+  const currentDate = new Date(); // Thời gian hiện tại
+
+  // Tính sự chênh lệch (miliseconds)
+  const difference = currentDate - targetDate;
+
+  // Kiểm tra xem thời gian đã qua hay sắp tới
+  if (difference < 0) {
+      return "Thời gian đã qua.";
+  }
+
+  // Chuyển đổi sự chênh lệch thành ngày, giờ, phút, giây
+  const days = Math.floor(difference / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((difference % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+  const minutes = Math.floor((difference % (1000 * 60 * 60)) / (1000 * 60));
+  const seconds = Math.floor((difference % (1000 * 60)) / 1000);
+
+  // Trả về kết quả dưới dạng chuỗi
+  return `${days} ngày, ${hours} giờ, ${minutes} phút, ${seconds} giây`;
+}
+
+export {removeCommasHelpers, codeAutoGenerationHelpers, generateCode, checkOutput, codeGenerationHelpers, priceToText, formatNumberAndCheckEmpty, roundToDecimalHelpers, getDateRange, calculateTimeDifference}

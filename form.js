@@ -1,5 +1,5 @@
 import { EventHelpers, RequestServerHelpers, FileHelpers, URLHelpers } from "./core.js";
-import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers, checkDom, applyAttributeData, setFormData, getFormData, collectFormElements } from "./coreFunctions.js";
+import { formatDataResponse, check, clearAllClassValidateHelpers, convertDateFormatHelpers, numberFormatHelpers, checkDom, applyAttributeData, setFormData, getFormData, collectFormElements, filterValidData } from "./coreFunctions.js";
 import { removeCommasHelpers } from "./common.js";
 
 /**Class làm việc với modal */
@@ -128,6 +128,11 @@ class ModalHelpers extends RequestServerHelpers {
     hideModal() {
         if (this.newModal) {
             this.newModal.hide();
+            const backdrop = document.querySelector(".modal-backdrop.fade.show");
+            if (backdrop) {
+                backdrop.remove();
+            }
+
         }
     }
 
@@ -1408,16 +1413,22 @@ class FormFilterHelpers extends BaseFormHelpers {
         if (!this.hasEventListener) {
             this.form.addEventListener("submit", async (e) => {
                 e.preventDefault();
-
+                // thực hiện loading
                 this.toggleLoading(submitButton, true);
+                // lấy các thẻ thu thập dữ liệu ở trong form
                 const dom = collectFormElements(this.form);
+                // lấy dữ liệu ở trong các thẻ đó
                 let data = getFormData(dom, this.dataChoice);
+                // lọc lấy các trường có dữ  liệu 
+                data = filterValidData(data);
+                // giữ lại các params không được xóa
                 let keysToKeep = [...this.defaultKeysToKeep, ...this.keysToKeep];
-                this.url.removeParamsExcept(keysToKeep); // Xóa các param trừ những param cần giữ lại
-                this.url.addParamsToURL(data); // Đưa các param lên URL
-
-                this.layout.type = "search"; // Gán kiểu tìm kiếm cho layout
-                await this.layout.renderUI(); // Gọi API và cập nhật giao diện
+                // thực hiện xóa các params còn lại
+                this.url.removeParamsExcept(keysToKeep); 
+                // Đưa các param lên URL
+                this.url.addParamsToURL(data);
+                // Gọi API và cập nhật giao diện
+                await this.layout.renderUI(); 
 
                 this.toggleLoading(submitButton, false, submitButtonTextContent);
             });

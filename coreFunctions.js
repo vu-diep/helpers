@@ -368,4 +368,15 @@ function collectFormElements(scope) {
   });
   return dom;
 }
-export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers, isEmptyObject, checkDom, applyAttributeData, setFormData, getAttributeData, getFormData, collectFormElements };
+
+/**
+ * Hàm nhận vào 1 object và lọc ra các key value có dữ liệu
+ * @param {Object} obj object chứa các trường cần lọc
+ * @returns Object các trường có dữ liệu
+ */
+function filterValidData(obj) {
+  return Object.fromEntries(
+      Object.entries(obj).filter(([_, value]) => value !== null && value !== undefined && value !== '')
+  );
+}
+export { formatApiUrl, convertDateFormatHelpers, formatAPI, check, formatDataResponse, clearAllClassValidateHelpers, numberFormatHelpers, isEmptyObject, checkDom, applyAttributeData, setFormData, getAttributeData, getFormData, collectFormElements, filterValidData};

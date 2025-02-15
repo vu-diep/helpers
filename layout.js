@@ -20,7 +20,7 @@ class PaginationHelpers extends URLHelpers {
     }
     // Hàm để khởi tạo sự kiện phân trang
     initializeEvents() {
-        if (this.eventInitialized) return; 
+        if (this.eventInitialized) return;
         this.pagination.addEventListener("click", (e) => {
             // Kiểm tra nếu phần tử click có class 'btn-paginations'
             if (e.target.classList.contains("btn-paginations")) {
@@ -153,7 +153,6 @@ class BaseLayoutHelpers extends URLHelpers {
         this.template = template;
         this.total = total;
 
-        this.type = "get";
         this.tbody = "#list-data";
         const tbody = document.querySelector(this.tbody);
         if (!check(tbody, this.tbody)) return;
@@ -178,19 +177,19 @@ class BaseLayoutHelpers extends URLHelpers {
         let response = await this.request.getData(this.api);
         this.insertHTMLInTable(response);
 
-        if(typeof this.callback  == "function"){
+        if (typeof this.callback == "function") {
             this.callback(response);
         }
     }
-    
+
 
     insertHTMLInTable(response) {
         this.index = response.from;
         const html = this.template(response, this.index);
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
-            new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.eventInitialized );
-            this.eventInitialized  = true;  
+            new PaginationHelpers(response, this.renderUI.bind(this), this.pagination, this.eventInitialized);
+            this.eventInitialized = true;
         }
         this.tbody.innerHTML = html;
         this.setLabelAndTitle();
@@ -258,19 +257,21 @@ class BaseLayoutHelpers extends URLHelpers {
 
                         // Lấy tiêu đề tương ứng từ `headers`
                         let label = headers[headerIndex]?.textContent.trim();
-                        label = label?.toUpperCase();
+                        if (label) {
+                            label = label?.toUpperCase();
 
-                        // Set thuộc tính
-                        if (Array.isArray(attributes)) {
-                            attributes.forEach(attribute => {
-                                cell.setAttribute(attribute, label);
-                            });
-                        } else {
-                            cell.setAttribute(attributes, label);
+                            // Set thuộc tính
+                            if (Array.isArray(attributes)) {
+                                attributes.forEach(attribute => {
+                                    cell.setAttribute(attribute, label);
+                                });
+                            } else {
+                                cell.setAttribute(attributes, label);
+                            }
+
+                            // Tăng headerIndex dựa trên colspan
+                            headerIndex += colspan;
                         }
-
-                        // Tăng headerIndex dựa trên colspan
-                        headerIndex += colspan;
                     } else {
                         headerIndex++;
                     }
@@ -326,18 +327,18 @@ class BaseLayoutHelpers extends URLHelpers {
 
     /**Hàm có tác dụng cuộn chột đến vị trí đã lưu trong  localStorage*/
     restoreScrollPosition() {
-        const restorePosition = JSON.parse(sessionStorage.getItem('scrollPosition'));; 
+        const restorePosition = JSON.parse(sessionStorage.getItem('scrollPosition'));;
         if (restorePosition !== null) {
             setTimeout(() => {
                 window.scrollTo({
-                    left: restorePosition.x, 
-                    top: restorePosition.y,  
+                    left: restorePosition.x,
+                    top: restorePosition.y,
                     behavior: "smooth"
                 });
             }, 500)
         }
     }
-    
+
 }
 
 class LayoutHelpers extends BaseLayoutHelpers {
@@ -352,7 +353,6 @@ class LayoutHelpers extends BaseLayoutHelpers {
        *  {dom: id thẻ nhận dữ liệu, key: key khi trả về từ api, subContent: Nội dung phụ đằng sau, format: "date" or "number"}
        * ]
        * @param {boolean} [statusHeader = true] là trạng thái hiển thị xem có index tự tăng ở đầu hay không. Nếu là false thì không hiển thị
-       * @param {string} type phân biệt giữa lọc và lấy dữ liệu
        * @param {boolean} status phân biệt giữa việc khởi tạo layout và việc chỉ sử dụng các phương thức có trong layout true: Khởi tạo
        * @param {string, boolean} pagination thực id của phân trang. Nếu bạn truyền vào fase thì nó sẽ không thực hiện phân trang nữa
        * @param {array} subHtml là một mảng chứa các phần tử phụ muốn thêm vào cuối html. Thường là các trường tính tổng được thêm vào cuối bảng. Để sử dụng hãy truyền dữ liệu theo cách sau:
@@ -392,7 +392,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
                 if (!element) {
                     console.error(`Không tìm thấy dom với id ${item.dom}`);
                 } else {
-                    let value = res[item.key];
+                    let value = checkOutput(res[item.key], 0);
                     if (item.format && item.format === "date") {
                         value = dateTimeFormat(value ?? 0);
                     } else if (item.format === "number") {
@@ -410,7 +410,7 @@ class LayoutHelpers extends BaseLayoutHelpers {
         }
 
         this.insertHTMLInTable(res);
-        if(typeof this.callback  == "function"){
+        if (typeof this.callback == "function") {
             this.callback(response);
         }
     }
@@ -485,8 +485,8 @@ class LayoutHelpers extends BaseLayoutHelpers {
         }
         // kiểm tra xem có thực hiện phân trang hay không
         if (this.pagination) {
-            new PaginationHelpers(res, this.renderUI.bind(this), this.pagination, this.eventInitialized );
-            this.eventInitialized  = true;  
+            new PaginationHelpers(res, this.renderUI.bind(this), this.pagination, this.eventInitialized);
+            this.eventInitialized = true;
         }
         this.tbody.innerHTML = html;
         this.setLabelAndTitle();
