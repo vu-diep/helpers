@@ -943,12 +943,8 @@ class BaseFormHelpers extends RequestServerHelpers {
         this.dataChoice = this.choice.choice;
 
         this.event = new EventHelpers(this.form);
-        this.select = new SelectHelpers(this.dataChoice, this.event, this.form);
-
+        
         this.validate = new ValidateHelpers(this, validations);
-        this.datePicker = new DatePickerHelpers(this.form);
-        // mặc định khởi tạo date picker
-        this.datePicker.initialize();
         this.reset = new ResetHelpers(this.form, this.dataChoice, this.datePicker);
         this.modal = new ModalHelpers(modalSelector, this.form, this.dataChoice, this.reset, this.api, this.priceFormat, this.dateFormat);
         this.file = new FileHelpers();
